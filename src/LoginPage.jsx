@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useAuth } from "./context/AuthContext";
-import { KazuloLogo } from "./components/KazuloLogo";
 
 const HINT_USERS = [
   { user: "admin", label: "Administrador (acesso total)" },
@@ -34,7 +33,10 @@ export default function LoginPage() {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <KazuloLogo variant="login" />
+        <div className="login-brand">
+          <h1>KAZULO</h1>
+          <p>Workflow Industrial</p>
+        </div>
         <form onSubmit={handleSubmit} className="login-form">
           <div className="form-field">
             <label>Usuário</label>

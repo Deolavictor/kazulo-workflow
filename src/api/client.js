@@ -115,6 +115,27 @@ export const api = {
       body: JSON.stringify(body)
     }),
 
+  fetchChatChannels: () => request("/chat/channels"),
+
+  fetchChatMessages: (channel, params = {}) => {
+    const qs = new URLSearchParams({ channel });
+    if (params.after) qs.set("after", params.after);
+    if (params.limit) qs.set("limit", params.limit);
+    return request(`/chat/messages?${qs}`);
+  },
+
+  sendChatMessage: (channel, body) =>
+    request("/chat/messages", {
+      method: "POST",
+      body: JSON.stringify({ channel, body })
+    }),
+
+  markChatRead: (channel, throughMessageId) =>
+    request("/chat/read", {
+      method: "POST",
+      body: JSON.stringify({ channel, throughMessageId })
+    }),
+
   fetchBackups: () => request("/admin/backups"),
 
   runBackup: () => request("/admin/backups/run", { method: "POST" }),

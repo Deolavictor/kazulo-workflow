@@ -6,8 +6,8 @@ import { UsuariosView } from "./views/UsuariosView";
 import { ConfiguracoesView } from "./views/ConfiguracoesView";
 import { HistoricoView } from "./views/HistoricoView";
 import { ChangePasswordForm } from "./components/ChangePasswordForm";
-import { KazuloLogo } from "./components/KazuloLogo";
 import { NotificationsPanel } from "./components/NotificationsPanel";
+import { ChatView } from "./views/ChatView";
 
 // LEAD TIMES: dias antes do início de produção
 const itemLeadTimes = {
@@ -94,6 +94,7 @@ const MENU_ITEMS = [
   { id: "Previsoes", icon: "⚠" },
   { id: "Relatorios", icon: "📊" },
   { id: "Historico", icon: "🕐", adminOnly: false },
+  { id: "Chat", icon: "💬", adminOnly: false },
   { id: "Usuarios", icon: "👥", adminOnly: true },
   { id: "Configuracoes", icon: "⚙", adminOnly: true }
 ];
@@ -580,6 +581,7 @@ function App() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifLoading, setNotifLoading] = useState(false);
+  const [chatInitialChannel, setChatInitialChannel] = useState("geral");
 
   const visibleMenuItems = useMemo(
     () => MENU_ITEMS.filter((item) => isAdmin || !item.adminOnly),
@@ -665,7 +667,7 @@ function App() {
   useEffect(() => {
     if (!user) return;
     loadNotifications();
-    const interval = setInterval(loadNotifications, 120000);
+    const interval = setInterval(loadNotifications, 30000);
     return () => clearInterval(interval);
   }, [user, loadNotifications, projects]);
 
@@ -687,6 +689,12 @@ function App() {
       }
     }
     setNotifOpen(false);
+    if (n.type === "chat") {
+      setChatInitialChannel(n.channel || "geral");
+      setActiveMenu("Chat");
+      await loadNotifications();
+      return;
+    }
     const project = projects.find((p) => p.id === n.projectId);
     if (project) {
       setSelectedProject(project);
@@ -997,7 +1005,10 @@ function App() {
 
       <aside className="sidebar">
         <div>
-          <KazuloLogo variant="sidebar" />
+          <div className="sidebar-logo">
+            <h1>KAZULO</h1>
+            <p>Workflow Industrial</p>
+          </div>
           <nav className="sidebar-nav">
             {visibleMenuItems.map((item) => (
               <button
@@ -1015,7 +1026,9 @@ function App() {
                       ? "Relatórios"
                       : item.id === "Historico"
                         ? "Histórico"
-                        : item.id === "Usuarios"
+                        : item.id === "Chat"
+                          ? "Chat"
+                          : item.id === "Usuarios"
                           ? "Usuários"
                           : item.id === "Configuracoes"
                             ? "Configurações"
@@ -1163,6 +1176,13 @@ function App() {
                 setDetailTab("historico");
                 setActiveMenu("Projetos");
               }}
+            />
+          ) : activeMenu === "Chat" ? (
+            <ChatView
+              user={user}
+              initialChannel={chatInitialChannel}
+              onRead={loadNotifications}
+              onMessagesLoaded={loadNotifications}
             />
           ) : activeMenu === "Usuarios" && isAdmin ? (
             <UsuariosView currentUserId={user?.id} />

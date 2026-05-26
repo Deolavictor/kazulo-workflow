@@ -40,6 +40,25 @@ db.exec(`
     read_at TEXT NOT NULL DEFAULT (datetime('now')),
     PRIMARY KEY (user_id, notification_id)
   );
+
+  CREATE TABLE IF NOT EXISTS chat_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    user_name TEXT NOT NULL,
+    user_sector TEXT,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_chat_messages_channel_id ON chat_messages(channel, id);
+
+  CREATE TABLE IF NOT EXISTS chat_read_cursors (
+    user_id INTEGER NOT NULL,
+    channel TEXT NOT NULL,
+    last_message_id INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, channel)
+  );
 `);
 
 const userCount = db.prepare("SELECT COUNT(*) AS c FROM users").get().c;

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 
 const TYPE_LABELS = {
+  chat: "Chat",
   overdue: "Atraso",
   production_blocker: "Produção",
   delivery_risk: "Entrega"
@@ -61,8 +62,10 @@ export function NotificationsPanel({
                   </span>
                   <span className="notif-msg">{n.message}</span>
                   <span className="notif-meta">
-                    {n.projectName}
-                    {n.sector ? ` · ${n.sector}` : ""}
+                    {n.type === "chat"
+                      ? n.channelLabel || n.meta
+                      : n.projectName}
+                    {n.type !== "chat" && n.sector ? ` · ${n.sector}` : ""}
                     {n.daysLate != null ? ` · ${n.daysLate}d` : ""}
                     {n.daysUntilDelivery != null && n.daysUntilDelivery >= 0
                       ? ` · entrega ${n.dueLabel || ""}`

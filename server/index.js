@@ -26,6 +26,16 @@ import {
   markAllNotificationsRead
 } from "./db.js";
 import { buildUserNotifications } from "./notifications.js";
+import {
+  listChannelsForUser,
+  getChannelMessages,
+  postMessage,
+  markChannelRead,
+  markAllChatRead,
+  markChatNotificationRead,
+  buildChatNotifications,
+  isChatMessageReadForUser
+} from "./chat.js";
 import { listBackups, runDatabaseBackup, getBackupFilePath, getBackupConfig } from "./backup.js";
 import { startBackupScheduler } from "./backupScheduler.js";
 import { getAllSettings, setSettings, getPublicSettings } from "./appSettings.js";
@@ -155,11 +165,16 @@ app.post("/api/auth/change-password", authMiddleware, (req, res) => {
 
 app.get("/api/notifications", authMiddleware, (req, res) => {
   const projects = getAllProjects();
-  const items = buildUserNotifications(projects, req.user);
+  const workflowItems = buildUserNotifications(projects, req.user);
+  const chatItems = buildChatNotifications(req.user);
+  const items = [...chatItems, ...workflowItems];
   const readIds = new Set(getReadNotificationIds(req.user.id));
   const notifications = items.map((n) => ({
     ...n,
-    read: readIds.has(n.id)
+    read:
+      n.type === "chat"
+        ? isChatMessageReadForUser(req.user.id, n.messageId, n.channel)
+        : readIds.has(n.id)
   }));
   const unreadCount = notifications.filter((n) => !n.read).length;
   res.json({ notifications, unreadCount, generatedAt: new Date().toISOString() });
@@ -169,17 +184,51 @@ app.post("/api/notifications/read", authMiddleware, (req, res) => {
   const { ids, all } = req.body || {};
   if (all) {
     const projects = getAllProjects();
-    const items = buildUserNotifications(projects, req.user);
-    markAllNotificationsRead(
-      req.user.id,
-      items.map((n) => n.id)
-    );
+    const workflowItems = buildUserNotifications(projects, req.user);
+    const chatItems = buildChatNotifications(req.user);
+    markAllNotificationsRead(req.user.id, [
+      ...workflowItems.map((n) => n.id),
+      ...chatItems.map((n) => n.id)
+    ]);
+    markAllChatRead(req.user.id);
     return res.json({ ok: true });
   }
   if (!Array.isArray(ids) || !ids.length) {
     return res.status(400).json({ error: "Envie { ids: [...] } ou { all: true }" });
   }
-  markNotificationsRead(req.user.id, ids);
+  for (const id of ids) {
+    if (String(id).startsWith("chat:")) {
+      const messageId = Number(String(id).slice(5));
+      if (messageId) markChatNotificationRead(req.user.id, messageId);
+    }
+  }
+  markNotificationsRead(req.user.id, ids.filter((id) => !String(id).startsWith("chat:")));
+  res.json({ ok: true });
+});
+
+app.get("/api/chat/channels", authMiddleware, (req, res) => {
+  res.json({ channels: listChannelsForUser(req.user) });
+});
+
+app.get("/api/chat/messages", authMiddleware, (req, res) => {
+  const channel = req.query.channel || "geral";
+  const after = req.query.after;
+  const limit = req.query.limit;
+  res.json({ messages: getChannelMessages(channel, { after, limit }) });
+});
+
+app.post("/api/chat/messages", authMiddleware, (req, res) => {
+  const { channel, body } = req.body || {};
+  const result = postMessage(req.user, channel || "geral", body);
+  if (!result.ok) return res.status(400).json({ error: result.error });
+  res.status(201).json({ message: result.message });
+});
+
+app.post("/api/chat/read", authMiddleware, (req, res) => {
+  const { channel, throughMessageId } = req.body || {};
+  if (!channel) return res.status(400).json({ error: "Canal obrigatório" });
+  const result = markChannelRead(req.user.id, channel, throughMessageId ?? 0);
+  if (!result.ok) return res.status(400).json({ error: result.error });
   res.json({ ok: true });
 });
 
