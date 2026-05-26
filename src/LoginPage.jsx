@@ -36,10 +36,10 @@ export default function LoginPage() {
         <div className="login-brand">
           <img
             src="/kazulo-logo.png"
-            alt="KAZULO Displays"
+            alt="KAZULO Displays — 35 Anos"
             className="login-logo"
-            width={120}
-            height={120}
+            width={260}
+            height={62}
           />
           <p className="login-brand-tag">Workflow Industrial</p>
         </div>

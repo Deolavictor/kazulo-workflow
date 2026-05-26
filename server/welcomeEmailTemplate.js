@@ -4,11 +4,11 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** Cores oficiais Kazulo (espelham --blue do site) */
+/** Cores oficiais Kazulo */
 export const KAZULO = {
-  navy: "#123d7a",
-  navyDark: "#0c2d5c",
-  navyDeep: "#071f3f",
+  navy: "#004175",
+  navyDark: "#003560",
+  navyDeep: "#002847",
   soft: "#e8f0fb",
   softBorder: "#c5d9f2",
   accent: "#2f6fc4",
@@ -137,12 +137,17 @@ export function buildWelcomeEmailHtml({ siteUrl, loginUser, loginPassword }) {
           style="max-width:600px;width:100%;background:${KAZULO.white};border-radius:16px;overflow:hidden;
           box-shadow:0 12px 40px rgba(7,31,63,0.18)">
 
+          <!-- Logo (fundo branco — PNG transparente) -->
+          <tr>
+            <td style="background:#ffffff;padding:28px 32px 20px;text-align:center;border-bottom:1px solid ${KAZULO.softBorder}">
+              <img src="${logoSrc}" alt="KAZULO Displays — 35 Anos" width="300" height="72"
+                style="display:block;margin:0 auto;border:0;width:100%;max-width:300px;height:auto" />
+            </td>
+          </tr>
           <!-- Header -->
           <tr>
-            <td style="background:linear-gradient(180deg,${KAZULO.navyDeep} 0%,${KAZULO.navy} 70%,#1a4a8c 100%);
-              padding:40px 32px 36px;text-align:center">
-              <img src="${logoSrc}" alt="KAZULO Displays — Workflow Industrial" width="148" height="148"
-                style="display:block;margin:0 auto 16px;border:0;width:148px;height:148px;max-width:148px" />
+            <td style="background:linear-gradient(180deg,${KAZULO.navyDeep} 0%,${KAZULO.navy} 70%,#0a5088 100%);
+              padding:32px 32px 36px;text-align:center">
               <p style="margin:0 0 6px;font-size:12px;font-weight:700;color:rgba(255,255,255,0.9);
                 letter-spacing:0.2em;text-transform:uppercase">Workflow Industrial</p>
               <p style="margin:0;font-size:13px;font-weight:600;color:rgba(255,255,255,0.75);

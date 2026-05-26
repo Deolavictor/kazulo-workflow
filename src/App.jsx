@@ -933,10 +933,10 @@ function App() {
           <div className="sidebar-logo">
             <img
               src="/kazulo-logo.png"
-              alt="KAZULO"
+              alt="KAZULO Displays"
               className="sidebar-logo-img"
-              width={88}
-              height={88}
+              width={168}
+              height={40}
             />
             <p>Workflow Industrial</p>
           </div>

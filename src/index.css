@@ -60,10 +60,12 @@ body,
 
 .sidebar-logo-img {
   display: block;
-  width: 88px;
-  height: 88px;
-  margin: 0 auto 8px;
+  width: 100%;
+  max-width: 168px;
+  height: auto;
+  margin: 0 auto 10px;
   object-fit: contain;
+  filter: brightness(0) invert(1);
 }
 
 .sidebar-logo p {
@@ -189,9 +191,10 @@ body,
 
 .login-logo {
   display: block;
-  width: 120px;
-  height: 120px;
-  margin: 0 auto 12px;
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+  margin: 0 auto 16px;
   object-fit: contain;
 }
 
