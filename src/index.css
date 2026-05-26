@@ -58,17 +58,21 @@ body,
   align-self: flex-start;
 }
 
-.sidebar-logo h1 {
-  font-size: 30px;
-  font-weight: 900;
-  font-style: italic;
-  letter-spacing: -0.02em;
+.sidebar-logo-img {
+  display: block;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 8px;
+  object-fit: contain;
 }
 
 .sidebar-logo p {
-  opacity: 0.65;
+  opacity: 0.85;
   font-size: 12px;
   margin-top: 4px;
+  text-align: center;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .sidebar-nav {
@@ -179,16 +183,24 @@ body,
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
 }
 
-.login-brand h1 {
-  font-size: 32px;
-  font-weight: 900;
-  font-style: italic;
-  color: var(--blue);
+.login-brand {
+  text-align: center;
 }
 
-.login-brand p {
-  color: var(--muted);
-  font-size: 13px;
+.login-logo {
+  display: block;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 12px;
+  object-fit: contain;
+}
+
+.login-brand-tag {
+  color: var(--blue);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   margin-bottom: 24px;
 }
 

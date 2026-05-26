@@ -24,13 +24,21 @@ let logoDataUriCache = null;
 
 function getLogoDataUri() {
   if (logoDataUriCache) return logoDataUriCache;
-  try {
-    const svgPath = path.join(__dirname, "..", "public", "kazulo-logo-email.svg");
-    const svg = readFileSync(svgPath, "utf8");
-    logoDataUriCache = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
-  } catch {
-    logoDataUriCache = "";
+  const publicDir = path.join(__dirname, "..", "public");
+  const candidates = [
+    { file: "kazulo-logo.png", mime: "image/png" },
+    { file: "kazulo-logo-email.svg", mime: "image/svg+xml" }
+  ];
+  for (const { file, mime } of candidates) {
+    try {
+      const buf = readFileSync(path.join(publicDir, file));
+      logoDataUriCache = `data:${mime};base64,${buf.toString("base64")}`;
+      return logoDataUriCache;
+    } catch {
+      /* try next */
+    }
   }
+  logoDataUriCache = "";
   return logoDataUriCache;
 }
 
@@ -91,7 +99,7 @@ function sectorPillsHtml() {
 }
 
 export function buildWelcomeEmailHtml({ siteUrl, loginUser, loginPassword }) {
-  const logoSrc = getLogoDataUri() || `${siteUrl}/kazulo-logo-email.svg`;
+  const logoSrc = getLogoDataUri() || `${siteUrl}/kazulo-logo.png`;
   const loginRows = loginPassword
     ? `
         <tr>
@@ -131,13 +139,15 @@ export function buildWelcomeEmailHtml({ siteUrl, loginUser, loginPassword }) {
 
           <!-- Header -->
           <tr>
-            <td style="background:linear-gradient(145deg,${KAZULO.navyDeep} 0%,${KAZULO.navy} 45%,${KAZULO.accent} 100%);
-              padding:36px 32px 32px;text-align:center">
-              <img src="${logoSrc}" alt="KAZULO Workflow Industrial" width="220" height="56"
-                style="display:block;margin:0 auto 20px;border:0;max-width:220px;height:auto" />
-              <p style="margin:0;font-size:13px;font-weight:600;color:rgba(255,255,255,0.85);
-                letter-spacing:0.12em;text-transform:uppercase">Nova era na gestão de projetos</p>
-              <h1 style="margin:14px 0 0;font-size:26px;font-weight:800;color:#ffffff;line-height:1.25">
+            <td style="background:linear-gradient(180deg,${KAZULO.navyDeep} 0%,${KAZULO.navy} 70%,#1a4a8c 100%);
+              padding:40px 32px 36px;text-align:center">
+              <img src="${logoSrc}" alt="KAZULO Displays — Workflow Industrial" width="148" height="148"
+                style="display:block;margin:0 auto 16px;border:0;width:148px;height:148px;max-width:148px" />
+              <p style="margin:0 0 6px;font-size:12px;font-weight:700;color:rgba(255,255,255,0.9);
+                letter-spacing:0.2em;text-transform:uppercase">Workflow Industrial</p>
+              <p style="margin:0;font-size:13px;font-weight:600;color:rgba(255,255,255,0.75);
+                letter-spacing:0.08em;text-transform:uppercase">Gestão de projetos</p>
+              <h1 style="margin:18px 0 0;font-size:26px;font-weight:800;color:#ffffff;line-height:1.25">
                 Controle total da produção<br>em um só lugar
               </h1>
             </td>
