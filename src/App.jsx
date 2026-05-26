@@ -321,6 +321,56 @@ function sectorHasLateItem(project, stage) {
   return getSectorItems(stage).some((item) => isActivityOverdue(project, item));
 }
 
+function projectMatchesSectorFilter(project, stage) {
+  if (isProjectFullyComplete(project)) return false;
+  return sectorHasActiveCard(project, stage) || sectorHasCompletedWork(project, stage);
+}
+
+/** Ordenação: mais atrasado no setor primeiro; depois prazo mais próximo */
+function getSectorUrgencySortKey(project, stage) {
+  const items = getSectorItems(stage);
+  let maxOverdueDays = 0;
+  let nearestDueMs = Infinity;
+
+  items.forEach((item) => {
+    if (isActivityDone(project, item)) return;
+    const due = project.checklistDates?.[item];
+    if (!due) return;
+    const dueDate = new Date(due);
+    dueDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffMs = dueDate - today;
+    if (diffMs < 0) {
+      const overdueDays = Math.ceil(Math.abs(diffMs) / (1000 * 60 * 60 * 24));
+      if (overdueDays > maxOverdueDays) maxOverdueDays = overdueDays;
+    } else if (dueDate.getTime() < nearestDueMs) {
+      nearestDueMs = dueDate.getTime();
+    }
+  });
+
+  if (maxOverdueDays > 0) {
+    return { tier: 0, value: -maxOverdueDays };
+  }
+  if (nearestDueMs !== Infinity) {
+    return { tier: 1, value: nearestDueMs };
+  }
+  const prod = project.productionStartDate || subtractDays(project.deliveryDate, PRODUCTION_LEAD);
+  return { tier: 2, value: new Date(prod).getTime() };
+}
+
+function sortProjectsBySectorDeadline(projectList, stage, completedView = false) {
+  return [...projectList].sort((a, b) => {
+    if (completedView) {
+      return getDaysUntilDelivery(a.deliveryDate) - getDaysUntilDelivery(b.deliveryDate);
+    }
+    const ka = getSectorUrgencySortKey(a, stage);
+    const kb = getSectorUrgencySortKey(b, stage);
+    if (ka.tier !== kb.tier) return ka.tier - kb.tier;
+    return ka.value - kb.value;
+  });
+}
+
 function getProjectProgress(project) {
   const done = ALL_ACTIVITY_KEYS.filter((key) => isActivityDone(project, key)).length;
   return Math.round((done / ALL_ACTIVITY_KEYS.length) * 100);
@@ -779,7 +829,9 @@ function App() {
 
   const filteredProjects = projects.filter((p) => {
     if (p.completed || isProjectFullyComplete(p)) return false;
-    if (sectorFilter !== "Todos" && !sectorHasActiveCard(p, sectorFilter)) return false;
+    if (sectorFilter !== "Todos" && !projectMatchesSectorFilter(p, sectorFilter)) {
+      return false;
+    }
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -787,6 +839,9 @@ function App() {
       p.client.toLowerCase().includes(q)
     );
   });
+
+  const visibleKanbanStages =
+    sectorFilter === "Todos" ? kanbanStages : [sectorFilter];
 
   function getProjectBadge(project) {
     if (project.completed || isProjectFullyComplete(project)) {
@@ -982,7 +1037,11 @@ function App() {
             <div className="fluxo-header">
               <div>
                 <h2>Fluxo de Produção</h2>
-                <p>Acompanhe o andamento dos projetos por setor</p>
+                <p>
+                  {sectorFilter === "Todos"
+                    ? "Acompanhe o andamento dos projetos por setor — cards ordenados por prazo (mais atrasado primeiro)"
+                    : `Setor ${sectorFilter} — cards ordenados por prazo (mais atrasado primeiro)`}
+                </p>
               </div>
               <div className="fluxo-tools">
                 <input
@@ -1023,15 +1082,21 @@ function App() {
               <span className="legend-hint">Clique: 1× em andamento · 2× concluído · 3× reabre</span>
             </div>
 
-            <div className="kanban-board">
-              {kanbanStages.map((stage) => {
+            <div
+              className={`kanban-board ${visibleKanbanStages.length === 1 ? "kanban-board--filtered" : ""}`}
+            >
+              {visibleKanbanStages.map((stage) => {
                 const theme = STAGE_THEMES[stage];
                 const columnTab = sectorTabs[stage] || "open";
-                const openProjects = filteredProjects.filter((p) =>
-                  sectorHasActiveCard(p, stage)
+                const openProjects = sortProjectsBySectorDeadline(
+                  filteredProjects.filter((p) => sectorHasActiveCard(p, stage)),
+                  stage,
+                  false
                 );
-                const doneProjects = filteredProjects.filter((p) =>
-                  sectorHasCompletedWork(p, stage)
+                const doneProjects = sortProjectsBySectorDeadline(
+                  filteredProjects.filter((p) => sectorHasCompletedWork(p, stage)),
+                  stage,
+                  true
                 );
                 const stageProjects =
                   columnTab === "done" ? doneProjects : openProjects;

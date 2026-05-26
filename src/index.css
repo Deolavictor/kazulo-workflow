@@ -537,6 +537,16 @@ body,
   min-height: 280px;
 }
 
+.kanban-board--filtered {
+  overflow-x: visible;
+}
+
+.kanban-board--filtered .kanban-column {
+  min-width: 300px;
+  max-width: 420px;
+  flex: 1;
+}
+
 .kanban-column {
   min-width: 280px;
   max-width: 300px;
