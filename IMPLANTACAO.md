@@ -83,17 +83,21 @@ No fim do dia útil o servidor pode enviar um e-mail com **todas as tarefas em a
 
 ### Variáveis no Railway / `.env`
 
+**No plano Hobby do Railway, SMTP (Outlook/Gmail porta 587) não funciona.** Use **Brevo** (grátis, API HTTPS).
+
 | Variável | Exemplo | Descrição |
 |----------|---------|-----------|
 | `DAILY_REPORT_ENABLED` | `true` | `false` desliga o agendamento |
-| `DAILY_REPORT_TO` | `gestor@empresa.com.br` | Destinatário(s), separados por vírgula |
-| `DAILY_REPORT_CRON` | `0 17 * * 1-5` | Horário (padrão: 17h seg–sex) |
-| `DAILY_REPORT_TZ` | `America/Sao_Paulo` | Fuso horário |
-| `SMTP_HOST` | `smtp.gmail.com` | Servidor SMTP |
-| `SMTP_PORT` | `587` | Porta |
-| `SMTP_USER` | seu e-mail | Login SMTP |
-| `SMTP_PASS` | senha de app | Senha (Gmail: “Senha de app”) |
-| `SMTP_FROM` | `KAZULO <...>` | Remetente exibido |
+| `DAILY_REPORT_TO` | `Nome <email@...>, ...` | Destinatários (vírgula) |
+| `DAILY_REPORT_CRON` | `0 17 * * 1-5` | 17h seg–sex |
+| `DAILY_REPORT_TZ` | `America/Sao_Paulo` | Fuso |
+| `BREVO_API_KEY` | chave da Brevo | **Obrigatório no Railway** |
+| `EMAIL_SENDER_EMAIL` | `kazuloworkflow@outlook.com` | Remetente (validar na Brevo) |
+| `EMAIL_SENDER_NAME` | `KAZULO Workflow` | Nome do remetente |
+
+1. Crie conta em [brevo.com](https://www.brevo.com)  
+2. **Remetentes** → adicione e confirme o e-mail remetente  
+3. **SMTP & API** → copie a **Chave API v3** → `BREVO_API_KEY`
 
 ### Testar antes do horário
 

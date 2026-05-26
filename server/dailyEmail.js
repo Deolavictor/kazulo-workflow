@@ -1,8 +1,16 @@
-import nodemailer from "nodemailer";
 import { getAllProjects } from "./db.js";
 import { buildDailyOverdueReport } from "./overdueReport.js";
 import { formatDateBr } from "./workflowCalculations.js";
 import { buildWelcomeEmailHtml as buildWelcomeHtml } from "./welcomeEmailTemplate.js";
+import {
+  sendEmail,
+  isEmailConfigured,
+  getDailyEmailConfigStatus,
+  verifyEmailConnection,
+  parseRecipientObjects
+} from "./emailDelivery.js";
+
+export { isEmailConfigured, getDailyEmailConfigStatus, verifyEmailConnection };
 
 const STAGE_ICONS = {
   Design: "🎨",
@@ -11,68 +19,6 @@ const STAGE_ICONS = {
   PCP: "📋",
   Compras: "🛒"
 };
-
-function parseRecipients() {
-  const raw = process.env.DAILY_REPORT_TO || "";
-  return raw
-    .split(/[,;]/)
-    .map((e) => e.trim())
-    .filter(Boolean);
-}
-
-function isEmailConfigured() {
-  return (
-    parseRecipients().length > 0 &&
-    process.env.SMTP_HOST &&
-    process.env.SMTP_USER &&
-    process.env.SMTP_PASS
-  );
-}
-
-function formatMailError(err) {
-  const parts = [err.message];
-  if (err.code) parts.push(`Código: ${err.code}`);
-  if (err.response) parts.push(String(err.response).trim());
-  return parts.filter(Boolean).join(" — ");
-}
-
-function getFromAddress() {
-  const from = process.env.SMTP_FROM?.trim();
-  const user = process.env.SMTP_USER?.trim();
-  if (from) return from;
-  if (user) return `"KAZULO Workflow" <${user}>`;
-  return "KAZULO Workflow <noreply@kazulo.local>";
-}
-
-function createTransport() {
-  const port = Number(process.env.SMTP_PORT) || 587;
-  const secure = port === 465;
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port,
-    secure,
-    requireTLS: !secure,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    },
-    tls: {
-      minVersion: "TLSv1.2",
-      rejectUnauthorized: true
-    },
-    connectionTimeout: 20000,
-    greetingTimeout: 20000
-  });
-}
-
-export async function verifySmtpConnection() {
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    throw new Error("SMTP_HOST, SMTP_USER e SMTP_PASS são obrigatórios.");
-  }
-  const transport = createTransport();
-  await transport.verify();
-  return { ok: true, host: process.env.SMTP_HOST, user: process.env.SMTP_USER };
-}
 
 function escapeHtml(text) {
   return String(text ?? "")
@@ -159,64 +105,34 @@ export function buildDailyReportHtml(report) {
 </html>`;
 }
 
-export function getDailyEmailConfigStatus() {
-  const missing = [];
-  if (!parseRecipients().length) missing.push("DAILY_REPORT_TO");
-  if (!process.env.SMTP_HOST) missing.push("SMTP_HOST");
-  if (!process.env.SMTP_USER) missing.push("SMTP_USER");
-  if (!process.env.SMTP_PASS) missing.push("SMTP_PASS");
-  if (!process.env.WELCOME_LOGIN_PASSWORD) missing.push("WELCOME_LOGIN_PASSWORD (opcional no e-mail)");
-
-  return {
-    enabled: process.env.DAILY_REPORT_ENABLED !== "false",
-    recipients: parseRecipients(),
-    cron: process.env.DAILY_REPORT_CRON || "0 17 * * 1-5",
-    timezone: process.env.DAILY_REPORT_TZ || "America/Sao_Paulo",
-    smtpHost: process.env.SMTP_HOST || null,
-    smtpUser: process.env.SMTP_USER || null,
-    smtpConfigured: Boolean(
-      process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS
-    ),
-    missingVars: missing.filter((m) => !m.includes("opcional")),
-    ready: isEmailConfigured() && process.env.DAILY_REPORT_ENABLED !== "false"
-  };
-}
-
 export async function sendDailyOverdueEmail(projects = null) {
   if (!isEmailConfigured()) {
     throw new Error(
-      "E-mail diário não configurado. Defina DAILY_REPORT_TO, SMTP_HOST, SMTP_USER e SMTP_PASS."
+      "E-mail não configurado. No Railway use BREVO_API_KEY + DAILY_REPORT_TO + EMAIL_SENDER_EMAIL."
     );
   }
 
   const list = projects ?? getAllProjects();
   const report = buildDailyOverdueReport(list);
   const html = buildDailyReportHtml(report);
-  const recipients = parseRecipients();
   const subject =
     report.totalOverdue > 0
       ? `[KAZULO] ${report.totalOverdue} atividades em atraso — ${report.dateLabel}`
       : `[KAZULO] Nenhuma atividade em atraso — ${report.dateLabel}`;
 
-  const transport = createTransport();
-  try {
-    const info = await transport.sendMail({
-      from: getFromAddress(),
-      to: recipients.join(", "),
-      subject,
-      html,
-      text: buildPlainTextReport(report)
-    });
+  const sent = await sendEmail({
+    subject,
+    html,
+    text: buildPlainTextReport(report)
+  });
 
-    return {
-      messageId: info.messageId,
-      recipients,
-      totalOverdue: report.totalOverdue,
-      dateLabel: report.dateLabel
-    };
-  } catch (err) {
-    throw new Error(formatMailError(err));
-  }
+  return {
+    messageId: sent.messageId,
+    provider: sent.provider,
+    recipients: parseRecipientObjects().map((r) => r.email),
+    totalOverdue: report.totalOverdue,
+    dateLabel: report.dateLabel
+  };
 }
 
 function buildPlainTextReport(report) {
@@ -283,27 +199,20 @@ function buildWelcomePlainText() {
 export async function sendWelcomeEmail() {
   if (!isEmailConfigured()) {
     throw new Error(
-      "E-mail não configurado. Defina DAILY_REPORT_TO, SMTP_HOST, SMTP_USER e SMTP_PASS no Railway."
+      "E-mail não configurado. No Railway use BREVO_API_KEY + DAILY_REPORT_TO + EMAIL_SENDER_EMAIL."
     );
   }
 
-  const recipients = parseRecipients();
-  const transport = createTransport();
-  try {
-    const info = await transport.sendMail({
-      from: getFromAddress(),
-      to: recipients.join(", "),
-      subject: "Bem-vindos ao KAZULO Workflow Industrial",
-      html: buildWelcomeEmailHtml(),
-      text: buildWelcomePlainText()
-    });
+  const sent = await sendEmail({
+    subject: "Bem-vindos ao KAZULO Workflow Industrial",
+    html: buildWelcomeEmailHtml(),
+    text: buildWelcomePlainText()
+  });
 
-    return {
-      messageId: info.messageId,
-      recipients,
-      siteUrl: getWelcomeConfig().siteUrl
-    };
-  } catch (err) {
-    throw new Error(formatMailError(err));
-  }
+  return {
+    messageId: sent.messageId,
+    provider: sent.provider,
+    recipients: parseRecipientObjects().map((r) => r.email),
+    siteUrl: getWelcomeConfig().siteUrl
+  };
 }

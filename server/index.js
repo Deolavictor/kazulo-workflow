@@ -24,7 +24,7 @@ import {
   sendDailyOverdueEmail,
   sendWelcomeEmail,
   buildWelcomeEmailHtml,
-  verifySmtpConnection
+  verifyEmailConnection
 } from "./dailyEmail.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -170,7 +170,7 @@ app.get("/api/admin/daily-report/status", authMiddleware, requireAdmin, (_req, r
 
 app.post("/api/admin/daily-report/verify-smtp", authMiddleware, requireAdmin, async (_req, res) => {
   try {
-    const result = await verifySmtpConnection();
+    const result = await verifyEmailConnection();
     res.json(result);
   } catch (err) {
     console.error("[email] verify-smtp:", err);
