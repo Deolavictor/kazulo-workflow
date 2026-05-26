@@ -1051,6 +1051,12 @@ function App() {
                 setActiveMenu("Projetos");
               }}
             />
+          ) : activeMenu === "Relatorios" ? (
+            <RelatoriosView
+              projects={projects}
+              isAdmin={isAdmin}
+              userSector={user?.sector}
+            />
           ) : (
           <>
           <div className="board-area">
@@ -1569,6 +1575,301 @@ function buildProductionForecasts(projects, sectorFilter) {
   });
 
   return forecasts;
+}
+
+function getCompletionDelayDays(project, itemKey) {
+  const due = project.checklistDates?.[itemKey];
+  if (!due || !isActivityDone(project, itemKey)) return 0;
+  const completedDate = getActivityCompletionDate(project, itemKey);
+  if (!completedDate) {
+    return wasActivityDeliveredOnTime(project, itemKey) ? 0 : getDaysLate(due);
+  }
+  const dueD = new Date(due);
+  dueD.setHours(0, 0, 0, 0);
+  const compD = new Date(completedDate);
+  compD.setHours(0, 0, 0, 0);
+  if (compD <= dueD) return 0;
+  return Math.ceil((compD - dueD) / (1000 * 60 * 60 * 24));
+}
+
+function isActivityOverdueForKpi(project, itemKey) {
+  if (isActivityDone(project, itemKey)) return false;
+  const prodStart =
+    project.productionStartDate ||
+    subtractDays(project.deliveryDate, PRODUCTION_LEAD);
+  if (PRODUCTION_GATE_KEYS.includes(itemKey) && isItemLate(prodStart)) return true;
+  const due = project.checklistDates?.[itemKey];
+  return due ? isItemLate(due) : false;
+}
+
+function getOpenDelayDays(project, itemKey) {
+  const prodStart =
+    project.productionStartDate ||
+    subtractDays(project.deliveryDate, PRODUCTION_LEAD);
+  if (PRODUCTION_GATE_KEYS.includes(itemKey) && isItemLate(prodStart)) {
+    return getDaysLate(prodStart);
+  }
+  const due = project.checklistDates?.[itemKey];
+  return due && isItemLate(due) ? getDaysLate(due) : 0;
+}
+
+function getActivityKeysForKpiScope(scope) {
+  if (scope === "Todos") return ALL_ACTIVITY_KEYS;
+  return getSectorItems(scope);
+}
+
+function buildSectorKpi(projects, scope) {
+  const itemKeys = getActivityKeysForKpiScope(scope);
+  let completed = 0;
+  let onTime = 0;
+  let openLate = 0;
+  let completedLate = 0;
+  let delayDaysSum = 0;
+  let delayCount = 0;
+  let productionBlocks = 0;
+  const impactedProjects = new Set();
+
+  projects.forEach((project) => {
+    let projectImpacted = false;
+
+    itemKeys.forEach((key) => {
+      if (scope !== "Todos" && ACTIVITY_SECTOR[key] !== scope) return;
+
+      if (isActivityDone(project, key)) {
+        completed++;
+        if (wasActivityDeliveredOnTime(project, key)) {
+          onTime++;
+        } else {
+          completedLate++;
+          const days = getCompletionDelayDays(project, key);
+          if (days > 0) {
+            delayDaysSum += days;
+            delayCount++;
+          }
+          projectImpacted = true;
+        }
+      } else if (isActivityOverdueForKpi(project, key)) {
+        openLate++;
+        const days = getOpenDelayDays(project, key);
+        if (days > 0) {
+          delayDaysSum += days;
+          delayCount++;
+        }
+        projectImpacted = true;
+        if (PRODUCTION_GATE_KEYS.includes(key)) productionBlocks++;
+      }
+    });
+
+    if (projectImpacted) impactedProjects.add(project.id);
+  });
+
+  const totalLate = openLate + completedLate;
+  const efficiency = completed > 0 ? Math.round((onTime / completed) * 100) : null;
+  const avgDelay = delayCount > 0 ? Math.round((delayDaysSum / delayCount) * 10) / 10 : 0;
+
+  return {
+    scope,
+    completed,
+    onTime,
+    totalLate,
+    openLate,
+    completedLate,
+    avgDelay,
+    projectsImpacted: impactedProjects.size,
+    productionBlocks,
+    efficiency
+  };
+}
+
+function KpiMetricCard({ label, value, suffix, variant, hint }) {
+  return (
+    <div className={`kpi-metric-card ${variant || ""}`}>
+      <span className="kpi-metric-value">
+        {value}
+        {suffix && <small>{suffix}</small>}
+      </span>
+      <span className="kpi-metric-label">{label}</span>
+      {hint && <span className="kpi-metric-hint">{hint}</span>}
+    </div>
+  );
+}
+
+function KpiPanel({ kpi, title, theme }) {
+  return (
+    <section className="kpi-panel" style={theme ? { borderTopColor: theme.accent } : undefined}>
+      {title && (
+        <h3 className="kpi-panel-title">
+          {theme?.icon && <span>{theme.icon}</span>}
+          {title}
+        </h3>
+      )}
+      <div className="kpi-metrics-grid">
+        <KpiMetricCard label="Atividades concluídas" value={kpi.completed} variant="success" />
+        <KpiMetricCard label="Atividades atrasadas" value={kpi.totalLate} variant="danger" />
+        <KpiMetricCard
+          label="Média de atraso"
+          value={kpi.avgDelay}
+          suffix=" dias"
+          variant={kpi.avgDelay > 0 ? "warning" : ""}
+        />
+        <KpiMetricCard label="Projetos impactados" value={kpi.projectsImpacted} />
+        <KpiMetricCard
+          label="Bloqueios de produção"
+          value={kpi.productionBlocks}
+          variant="danger"
+          hint="Itens críticos vencidos"
+        />
+        <KpiMetricCard
+          label="Eficiência"
+          value={kpi.efficiency !== null ? kpi.efficiency : "—"}
+          suffix={kpi.efficiency !== null ? "%" : ""}
+          variant="primary"
+          hint="Concluídas no prazo ÷ concluídas"
+        />
+      </div>
+      {kpi.completed > 0 && (
+        <div className="kpi-efficiency-bar">
+          <div className="kpi-efficiency-fill" style={{ width: `${kpi.efficiency || 0}%` }} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RelatoriosView({ projects, isAdmin, userSector }) {
+  const [viewMode, setViewMode] = useState(isAdmin ? "geral" : "setor");
+  const [sectorFilter, setSectorFilter] = useState(userSector || KANBAN_STAGES[0]);
+
+  const activeProjects = projects.filter(
+    (p) => !p.completed && !isProjectFullyComplete(p)
+  );
+
+  const generalKpi = buildSectorKpi(projects, "Todos");
+  const sectorKpis = KANBAN_STAGES.map((stage) => ({
+    stage,
+    theme: STAGE_THEMES[stage],
+    kpi: buildSectorKpi(projects, stage)
+  }));
+
+  const selectedKpi = buildSectorKpi(projects, isAdmin ? sectorFilter : userSector);
+  const selectedTheme = STAGE_THEMES[isAdmin ? sectorFilter : userSector];
+
+  return (
+    <div className="reports-view">
+      <div className="reports-header">
+        <div>
+          <h2>Relatórios</h2>
+          <p>KPIs de performance — visão geral da operação ou detalhamento por setor</p>
+        </div>
+        {isAdmin && (
+          <div className="reports-mode-tabs">
+            <button
+              type="button"
+              className={`reports-mode-tab ${viewMode === "geral" ? "active" : ""}`}
+              onClick={() => setViewMode("geral")}
+            >
+              Geral (todos os setores)
+            </button>
+            <button
+              type="button"
+              className={`reports-mode-tab ${viewMode === "setor" ? "active" : ""}`}
+              onClick={() => setViewMode("setor")}
+            >
+              Por setor
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="reports-context">
+        <span>
+          <strong>{projects.length}</strong> projetos no sistema ·{" "}
+          <strong>{activeProjects.length}</strong> ativos
+        </span>
+        {!isAdmin && (
+          <span className="reports-sector-pill">Setor {userSector}</span>
+        )}
+      </div>
+
+      {(viewMode === "geral" && isAdmin) || !isAdmin ? (
+        <>
+          {isAdmin && viewMode === "geral" && (
+            <>
+              <KpiPanel kpi={generalKpi} title="Indicadores gerais — todos os setores" />
+              <h3 className="reports-section-title">Desempenho por setor</h3>
+              <div className="reports-sector-grid">
+                {sectorKpis.map(({ stage, theme, kpi }) => (
+                  <KpiPanel key={stage} kpi={kpi} title={stage} theme={theme} />
+                ))}
+              </div>
+            </>
+          )}
+          {!isAdmin && (
+            <KpiPanel
+              kpi={selectedKpi}
+              title={`Setor ${userSector}`}
+              theme={selectedTheme}
+            />
+          )}
+        </>
+      ) : (
+        <>
+          <div className="reports-sector-picker">
+            <label>Setor</label>
+            <select
+              className="filter-select"
+              value={sectorFilter}
+              onChange={(e) => setSectorFilter(e.target.value)}
+            >
+              {KANBAN_STAGES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+          <KpiPanel
+            kpi={selectedKpi}
+            title={`Setor ${sectorFilter}`}
+            theme={selectedTheme}
+          />
+          <div className="reports-compare-table-wrap">
+            <h3 className="reports-section-title">Comparativo entre setores</h3>
+            <table className="reports-compare-table">
+              <thead>
+                <tr>
+                  <th>Setor</th>
+                  <th>Concluídas</th>
+                  <th>Atrasadas</th>
+                  <th>Média atraso</th>
+                  <th>Projetos</th>
+                  <th>Bloq. prod.</th>
+                  <th>Eficiência</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sectorKpis.map(({ stage, theme, kpi }) => (
+                  <tr key={stage} className={stage === sectorFilter ? "highlight" : ""}>
+                    <td>
+                      <span className="compare-sector">
+                        {theme.icon} {stage}
+                      </span>
+                    </td>
+                    <td>{kpi.completed}</td>
+                    <td className="cell-danger">{kpi.totalLate}</td>
+                    <td>{kpi.avgDelay} d</td>
+                    <td>{kpi.projectsImpacted}</td>
+                    <td className="cell-danger">{kpi.productionBlocks}</td>
+                    <td>
+                      <strong>{kpi.efficiency !== null ? `${kpi.efficiency}%` : "—"}</strong>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
