@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "./context/AuthContext";
 import { api } from "./api/client";
+import { buildReportFilename, exportElementToPdf } from "./utils/exportReportPdf";
 
 // LEAD TIMES: dias antes do início de produção
 const itemLeadTimes = {
@@ -1056,6 +1057,10 @@ function App() {
               projects={projects}
               isAdmin={isAdmin}
               userSector={user?.sector}
+              onOpenProject={(project) => {
+                setSelectedProject(project);
+                setActiveMenu("Projetos");
+              }}
             />
           ) : (
           <>
@@ -1694,6 +1699,145 @@ function KpiMetricCard({ label, value, suffix, variant, hint }) {
   );
 }
 
+function buildSectorActivityLists(projects, stage) {
+  const overdue = [];
+  const open = [];
+  const itemKeys = getSectorItems(stage);
+
+  projects.forEach((project) => {
+    if (project.completed || isProjectFullyComplete(project)) return;
+
+    itemKeys.forEach((key) => {
+      if (isActivityDone(project, key)) return;
+
+      const status = getActivityStatus(project, key);
+      const due = project.checklistDates?.[key];
+      const entry = {
+        projectId: project.id,
+        projectName: project.name,
+        client: project.client,
+        itemKey: key,
+        label: CHECKLIST_LABELS[key],
+        dueDate: due,
+        status,
+        statusLabel:
+          status === "locked"
+            ? "Bloqueado"
+            : status === "progress"
+              ? "Em andamento"
+              : status === "late"
+                ? "Atrasado"
+                : "Liberado"
+      };
+
+      open.push(entry);
+
+      if (isActivityOverdueForKpi(project, key)) {
+        overdue.push({
+          ...entry,
+          daysLate: getOpenDelayDays(project, key)
+        });
+      }
+    });
+  });
+
+  overdue.sort((a, b) => b.daysLate - a.daysLate);
+  open.sort((a, b) => {
+    if (a.dueDate && b.dueDate) return new Date(a.dueDate) - new Date(b.dueDate);
+    if (a.dueDate) return -1;
+    if (b.dueDate) return 1;
+    return a.projectName.localeCompare(b.projectName, "pt-BR");
+  });
+
+  return { overdue, open };
+}
+
+function ActivityListTable({ title, items, variant, projects, onOpenProject }) {
+  return (
+    <div className={`activity-list-block ${variant}`}>
+      <h4>
+        {title}
+        <span className="activity-list-count">{items.length}</span>
+      </h4>
+      {items.length === 0 ? (
+        <p className="activity-list-empty">Nenhuma atividade nesta lista.</p>
+      ) : (
+        <table className="activity-list-table">
+          <thead>
+            <tr>
+              <th>Projeto</th>
+              <th>Atividade</th>
+              <th>Prazo</th>
+              <th>Status</th>
+              {variant === "overdue" && <th>Atraso</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((row) => (
+              <tr key={`${row.projectId}-${row.itemKey}`}>
+                <td>
+                  <button
+                    type="button"
+                    className="activity-list-link"
+                    onClick={() => {
+                      const project = projects.find((p) => p.id === row.projectId);
+                      if (project) onOpenProject(project);
+                    }}
+                  >
+                    {row.projectName}
+                  </button>
+                  <span className="activity-list-client">{row.client}</span>
+                </td>
+                <td>{row.label}</td>
+                <td>{row.dueDate ? formatDate(row.dueDate) : "—"}</td>
+                <td>
+                  <span className={`activity-status-pill ${row.status}`}>
+                    {row.statusLabel}
+                  </span>
+                </td>
+                {variant === "overdue" && (
+                  <td className="cell-danger">
+                    <strong>{row.daysLate} dia(s)</strong>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+function SectorActivityReport({ stage, theme, lists, projects, onOpenProject }) {
+  return (
+    <section
+      className="sector-activity-report"
+      style={{ borderTopColor: theme?.accent || "#123D7A" }}
+    >
+      <h3 className="sector-activity-title">
+        <span>{theme?.icon}</span> {stage}
+      </h3>
+      <div className="sector-activity-columns">
+        <ActivityListTable
+          title="Em atraso"
+          items={lists.overdue}
+          variant="overdue"
+          projects={projects}
+          onOpenProject={onOpenProject}
+        />
+        <ActivityListTable
+          title="Em aberto"
+          items={lists.open}
+          variant="open"
+          projects={projects}
+          onOpenProject={onOpenProject}
+        />
+      </div>
+    </section>
+  );
+}
+
 function KpiPanel({ kpi, title, theme }) {
   return (
     <section className="kpi-panel" style={theme ? { borderTopColor: theme.accent } : undefined}>
@@ -1736,9 +1880,12 @@ function KpiPanel({ kpi, title, theme }) {
   );
 }
 
-function RelatoriosView({ projects, isAdmin, userSector }) {
+function RelatoriosView({ projects, isAdmin, userSector, onOpenProject }) {
   const [viewMode, setViewMode] = useState(isAdmin ? "geral" : "setor");
   const [sectorFilter, setSectorFilter] = useState(userSector || KANBAN_STAGES[0]);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [pdfScope, setPdfScope] = useState(null);
+  const reportPdfRef = useRef(null);
 
   const activeProjects = projects.filter(
     (p) => !p.completed && !isProjectFullyComplete(p)
@@ -1748,89 +1895,166 @@ function RelatoriosView({ projects, isAdmin, userSector }) {
   const sectorKpis = KANBAN_STAGES.map((stage) => ({
     stage,
     theme: STAGE_THEMES[stage],
-    kpi: buildSectorKpi(projects, stage)
+    kpi: buildSectorKpi(projects, stage),
+    activityLists: buildSectorActivityLists(projects, stage)
   }));
 
   const selectedKpi = buildSectorKpi(projects, isAdmin ? sectorFilter : userSector);
   const selectedTheme = STAGE_THEMES[isAdmin ? sectorFilter : userSector];
+
+  const pdfIsFull = pdfScope === "full";
+  const renderGeralSection = pdfIsFull || (isAdmin && viewMode === "geral");
+  const renderSetorSection = !pdfIsFull && isAdmin && viewMode === "setor";
+  const renderUserSectorSection = !pdfIsFull && !isAdmin;
+  const renderCompareTable = pdfIsFull || renderSetorSection;
+
+  const activityStagesToShow = pdfIsFull
+    ? sectorKpis
+    : isAdmin && viewMode === "geral"
+      ? sectorKpis
+      : sectorKpis.filter((s) => s.stage === (isAdmin ? sectorFilter : userSector));
+
+  const reportTitle = pdfIsFull
+    ? "Relatório completo — todos os setores"
+    : !isAdmin
+      ? `Relatório — setor ${userSector}`
+      : viewMode === "geral"
+        ? "Relatório geral — todos os setores"
+        : `Relatório — setor ${sectorFilter}`;
+
+  async function handleExportPdf(scope) {
+    setExportingPdf(true);
+    if (scope === "full") setPdfScope("full");
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const el = reportPdfRef.current;
+    el?.classList.add("is-pdf-export");
+    try {
+      const sectorName = isAdmin
+        ? viewMode === "geral"
+          ? "geral"
+          : sectorFilter
+        : userSector;
+      const filename = buildReportFilename(scope, scope === "full" ? null : sectorName);
+      await exportElementToPdf(el, filename);
+    } catch (err) {
+      alert(err.message || "Não foi possível gerar o PDF");
+    } finally {
+      el?.classList.remove("is-pdf-export");
+      setPdfScope(null);
+      setExportingPdf(false);
+    }
+  }
 
   return (
     <div className="reports-view">
       <div className="reports-header">
         <div>
           <h2>Relatórios</h2>
-          <p>KPIs de performance — visão geral da operação ou detalhamento por setor</p>
+          <p>Indicadores e listas de atividades — exporte em PDF para reuniões e decisões</p>
         </div>
-        {isAdmin && (
-          <div className="reports-mode-tabs">
+        <div className="reports-header-actions">
+          {isAdmin && (
+            <div className="reports-mode-tabs">
+              <button
+                type="button"
+                className={`reports-mode-tab ${viewMode === "geral" ? "active" : ""}`}
+                onClick={() => setViewMode("geral")}
+              >
+                Geral
+              </button>
+              <button
+                type="button"
+                className={`reports-mode-tab ${viewMode === "setor" ? "active" : ""}`}
+                onClick={() => setViewMode("setor")}
+              >
+                Por setor
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={exportingPdf}
+            onClick={() => handleExportPdf("current")}
+          >
+            {exportingPdf ? "Gerando PDF…" : "Exportar PDF"}
+          </button>
+          {isAdmin && (
             <button
               type="button"
-              className={`reports-mode-tab ${viewMode === "geral" ? "active" : ""}`}
-              onClick={() => setViewMode("geral")}
+              className="btn-secondary"
+              disabled={exportingPdf}
+              onClick={() => handleExportPdf("full")}
             >
-              Geral (todos os setores)
+              PDF completo
             </button>
-            <button
-              type="button"
-              className={`reports-mode-tab ${viewMode === "setor" ? "active" : ""}`}
-              onClick={() => setViewMode("setor")}
-            >
-              Por setor
-            </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      <div className="reports-context">
-        <span>
-          <strong>{projects.length}</strong> projetos no sistema ·{" "}
-          <strong>{activeProjects.length}</strong> ativos
-        </span>
-        {!isAdmin && (
-          <span className="reports-sector-pill">Setor {userSector}</span>
-        )}
-      </div>
+      {renderSetorSection && !pdfIsFull && (
+        <div className="reports-sector-picker">
+          <label>Setor</label>
+          <select
+            className="filter-select"
+            value={sectorFilter}
+            onChange={(e) => setSectorFilter(e.target.value)}
+          >
+            {KANBAN_STAGES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
-      {(viewMode === "geral" && isAdmin) || !isAdmin ? (
-        <>
-          {isAdmin && viewMode === "geral" && (
-            <>
-              <KpiPanel kpi={generalKpi} title="Indicadores gerais — todos os setores" />
-              <h3 className="reports-section-title">Desempenho por setor</h3>
-              <div className="reports-sector-grid">
-                {sectorKpis.map(({ stage, theme, kpi }) => (
-                  <KpiPanel key={stage} kpi={kpi} title={stage} theme={theme} />
-                ))}
-              </div>
-            </>
-          )}
-          {!isAdmin && (
-            <KpiPanel
-              kpi={selectedKpi}
-              title={`Setor ${userSector}`}
-              theme={selectedTheme}
-            />
-          )}
-        </>
-      ) : (
-        <>
-          <div className="reports-sector-picker">
-            <label>Setor</label>
-            <select
-              className="filter-select"
-              value={sectorFilter}
-              onChange={(e) => setSectorFilter(e.target.value)}
-            >
-              {KANBAN_STAGES.map((s) => (
-                <option key={s} value={s}>{s}</option>
+      <div ref={reportPdfRef} className="report-pdf-root">
+        <div className="pdf-cover">
+          <h1>KAZULO — Workflow Industrial</h1>
+          <p className="pdf-cover-title">{reportTitle}</p>
+          <p className="pdf-cover-meta">
+            Gerado em {formatDateTime(new Date().toISOString())}
+          </p>
+          <p className="pdf-cover-meta">
+            {projects.length} projetos · {activeProjects.length} ativos
+          </p>
+        </div>
+
+        <div className="reports-context reports-context-in-pdf">
+          <span>
+            <strong>{projects.length}</strong> projetos no sistema ·{" "}
+            <strong>{activeProjects.length}</strong> ativos
+          </span>
+        </div>
+
+        {renderGeralSection && (
+          <>
+            <KpiPanel kpi={generalKpi} title="Indicadores gerais — todos os setores" />
+            <h3 className="reports-section-title">Desempenho por setor</h3>
+            <div className="reports-sector-grid">
+              {sectorKpis.map(({ stage, theme, kpi }) => (
+                <KpiPanel key={stage} kpi={kpi} title={stage} theme={theme} />
               ))}
-            </select>
-          </div>
+            </div>
+          </>
+        )}
+
+        {renderUserSectorSection && (
+          <KpiPanel
+            kpi={selectedKpi}
+            title={`Setor ${userSector}`}
+            theme={selectedTheme}
+          />
+        )}
+
+        {renderSetorSection && (
           <KpiPanel
             kpi={selectedKpi}
             title={`Setor ${sectorFilter}`}
             theme={selectedTheme}
           />
+        )}
+
+        {renderCompareTable && (
           <div className="reports-compare-table-wrap">
             <h3 className="reports-section-title">Comparativo entre setores</h3>
             <table className="reports-compare-table">
@@ -1847,7 +2071,10 @@ function RelatoriosView({ projects, isAdmin, userSector }) {
               </thead>
               <tbody>
                 {sectorKpis.map(({ stage, theme, kpi }) => (
-                  <tr key={stage} className={stage === sectorFilter ? "highlight" : ""}>
+                  <tr
+                    key={stage}
+                    className={!pdfIsFull && stage === sectorFilter ? "highlight" : ""}
+                  >
                     <td>
                       <span className="compare-sector">
                         {theme.icon} {stage}
@@ -1866,8 +2093,28 @@ function RelatoriosView({ projects, isAdmin, userSector }) {
               </tbody>
             </table>
           </div>
-        </>
-      )}
+        )}
+
+        <div className="reports-activities-section">
+        <h3 className="reports-section-title">Atividades por setor — atrasadas e em aberto</h3>
+        <p className="reports-activities-desc">
+          Projetos ativos. <strong>Em atraso</strong> = prazo vencido ou início de produção
+          passou (itens críticos). <strong>Em aberto</strong> = todas as pendências do setor.
+        </p>
+        <div className="reports-activities-list">
+          {activityStagesToShow.map(({ stage, theme, activityLists }) => (
+            <SectorActivityReport
+              key={stage}
+              stage={stage}
+              theme={theme}
+              lists={activityLists}
+              projects={projects}
+              onOpenProject={onOpenProject}
+            />
+          ))}
+        </div>
+        </div>
+      </div>
     </div>
   );
 }
