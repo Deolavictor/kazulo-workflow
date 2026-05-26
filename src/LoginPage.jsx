@@ -34,14 +34,8 @@ export default function LoginPage() {
     <div className="login-screen">
       <div className="login-card">
         <div className="login-brand">
-          <img
-            src="/kazulo-logo.png"
-            alt="KAZULO Displays — 35 Anos"
-            className="login-logo"
-            width={260}
-            height={62}
-          />
-          <p className="login-brand-tag">Workflow Industrial</p>
+          <h1>KAZULO</h1>
+          <p>Workflow Industrial</p>
         </div>
         <form onSubmit={handleSubmit} className="login-form">
           <div className="form-field">

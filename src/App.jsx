@@ -931,13 +931,7 @@ function App() {
       <aside className="sidebar">
         <div>
           <div className="sidebar-logo">
-            <img
-              src="/kazulo-logo.png"
-              alt="KAZULO Displays"
-              className="sidebar-logo-img"
-              width={168}
-              height={40}
-            />
+            <h1>KAZULO</h1>
             <p>Workflow Industrial</p>
           </div>
           <nav className="sidebar-nav">
