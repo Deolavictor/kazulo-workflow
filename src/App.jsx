@@ -1034,6 +1034,8 @@ function App() {
           ) : activeMenu === "Calendario" ? (
             <CalendarView
               projects={projects}
+              isAdmin={isAdmin}
+              userSector={user?.sector}
               onOpenProject={(project) => {
                 setSelectedProject(project);
                 setActiveMenu("Projetos");
@@ -1491,11 +1493,13 @@ function buildCalendarEvents(projects, sectorFilter) {
   return events;
 }
 
-function CalendarView({ projects, onOpenProject }) {
+function CalendarView({ projects, onOpenProject, isAdmin, userSector }) {
   const [weekStart, setWeekStart] = useState(() => startOfWeekMonday(new Date()));
   const [sectorFilter, setSectorFilter] = useState("Todos");
 
-  const events = buildCalendarEvents(projects, sectorFilter);
+  const effectiveSectorFilter = isAdmin ? sectorFilter : userSector || "Todos";
+
+  const events = buildCalendarEvents(projects, effectiveSectorFilter);
   const weekDays = Array.from({ length: 7 }, (_, i) => addCalendarDays(weekStart, i));
   const todayKey = toLocalDateKey(new Date());
 
@@ -1530,20 +1534,28 @@ function CalendarView({ projects, onOpenProject }) {
       <div className="calendar-header">
         <div>
           <h2>Calendário</h2>
-          <p>Atividades programadas por semana — itens atrasados em vermelho</p>
+          <p>
+            {isAdmin
+              ? "Atividades programadas por semana — itens atrasados em vermelho"
+              : `Setor ${userSector} — somente suas atividades nesta semana`}
+          </p>
         </div>
-        <div className="calendar-tools">
-          <select
-            className="filter-select"
-            value={sectorFilter}
-            onChange={(e) => setSectorFilter(e.target.value)}
-          >
-            <option value="Todos">Todos os setores</option>
-            {KANBAN_STAGES.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </div>
+        {isAdmin ? (
+          <div className="calendar-tools">
+            <select
+              className="filter-select"
+              value={sectorFilter}
+              onChange={(e) => setSectorFilter(e.target.value)}
+            >
+              <option value="Todos">Todos os setores</option>
+              {KANBAN_STAGES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <span className="calendar-sector-badge">{userSector}</span>
+        )}
       </div>
 
       <div className="calendar-nav">

@@ -1807,6 +1807,16 @@ body,
   margin-top: 4px;
 }
 
+.calendar-sector-badge {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--blue);
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+}
+
 .calendar-nav {
   display: flex;
   align-items: center;
