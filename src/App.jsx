@@ -938,14 +938,7 @@ function App() {
           {syncError && (
             <div className="sync-error-banner">{syncError}</div>
           )}
-          {isAdmin && projects.length === 0 && !projectsLoading && (
-  <div className="import-banner">
-    <span>Tem projetos só no navegador (localStorage)?</span>
-    <button type="button" className="btn-secondary" onClick={importFromLocalStorage}>
-      Importar para o servidor
-    </button>
-  </div>
-)}
+         
           {projectsLoading ? (
             <div className="board-loading">Carregando projetos…</div>
           ) : activeMenu === "Dashboard" ? (
