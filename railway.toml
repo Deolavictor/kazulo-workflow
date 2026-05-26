@@ -1,0 +1,8 @@
+# Railway lê este arquivo automaticamente (opcional)
+[build]
+buildCommand = "npm install && npm run build"
+
+[deploy]
+startCommand = "npm run start"
+healthcheckPath = "/api/health"
+restartPolicyType = "ON_FAILURE"
