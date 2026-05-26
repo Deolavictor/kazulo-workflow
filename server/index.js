@@ -21,7 +21,9 @@ import { canUserEditProjectMeta } from "./workflowRules.js";
 import { startDailyReportScheduler } from "./dailyScheduler.js";
 import {
   getDailyEmailConfigStatus,
-  sendDailyOverdueEmail
+  sendDailyOverdueEmail,
+  sendWelcomeEmail,
+  buildWelcomeEmailHtml
 } from "./dailyEmail.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -171,6 +173,19 @@ app.post("/api/admin/daily-report/send", authMiddleware, requireAdmin, async (_r
     res.json({ ok: true, ...result });
   } catch (err) {
     res.status(500).json({ error: err.message || "Falha ao enviar e-mail" });
+  }
+});
+
+app.get("/api/admin/daily-report/welcome-preview", authMiddleware, requireAdmin, (_req, res) => {
+  res.json({ html: buildWelcomeEmailHtml() });
+});
+
+app.post("/api/admin/daily-report/welcome", authMiddleware, requireAdmin, async (_req, res) => {
+  try {
+    const result = await sendWelcomeEmail();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Falha ao enviar e-mail de apresentação" });
   }
 });
 

@@ -1885,6 +1885,8 @@ function RelatoriosView({ projects, isAdmin, userSector, onOpenProject }) {
   const [sectorFilter, setSectorFilter] = useState(userSector || KANBAN_STAGES[0]);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [pdfScope, setPdfScope] = useState(null);
+  const [welcomePreviewHtml, setWelcomePreviewHtml] = useState(null);
+  const [welcomeBusy, setWelcomeBusy] = useState(false);
   const reportPdfRef = useRef(null);
 
   const activeProjects = projects.filter(
@@ -1921,6 +1923,38 @@ function RelatoriosView({ projects, isAdmin, userSector, onOpenProject }) {
       : viewMode === "geral"
         ? "Relatório geral — todos os setores"
         : `Relatório — setor ${sectorFilter}`;
+
+  async function handlePreviewWelcomeEmail() {
+    setWelcomeBusy(true);
+    try {
+      const { html } = await api.previewWelcomeEmail();
+      setWelcomePreviewHtml(html);
+    } catch (err) {
+      alert(err.message || "Não foi possível carregar a prévia do e-mail");
+    } finally {
+      setWelcomeBusy(false);
+    }
+  }
+
+  async function handleSendWelcomeEmail() {
+    if (
+      !window.confirm(
+        "Enviar e-mail de apresentação para Rodolfo, Walter e Cristian (destinatários configurados no servidor)?"
+      )
+    ) {
+      return;
+    }
+    setWelcomeBusy(true);
+    try {
+      const result = await api.sendWelcomeEmail();
+      alert(`E-mail de apresentação enviado para:\n${result.recipients.join("\n")}`);
+      setWelcomePreviewHtml(null);
+    } catch (err) {
+      alert(err.message || "Falha ao enviar e-mail");
+    } finally {
+      setWelcomeBusy(false);
+    }
+  }
 
   async function handleExportPdf(scope) {
     setExportingPdf(true);
@@ -1989,8 +2023,49 @@ function RelatoriosView({ projects, isAdmin, userSector, onOpenProject }) {
               PDF completo
             </button>
           )}
+          {isAdmin && (
+            <>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={welcomeBusy || exportingPdf}
+                onClick={handlePreviewWelcomeEmail}
+              >
+                Prévia e-mail apresentação
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={welcomeBusy || exportingPdf}
+                onClick={handleSendWelcomeEmail}
+              >
+                {welcomeBusy ? "Enviando…" : "Enviar apresentação"}
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {welcomePreviewHtml && (
+        <div className="welcome-email-preview">
+          <div className="welcome-email-preview-bar">
+            <strong>Prévia do e-mail de apresentação</strong>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setWelcomePreviewHtml(null)}
+            >
+              Fechar
+            </button>
+          </div>
+          <iframe
+            title="Prévia e-mail de apresentação"
+            className="welcome-email-preview-frame"
+            srcDoc={welcomePreviewHtml}
+            sandbox=""
+          />
+        </div>
+      )}
 
       {renderSetorSection && !pdfIsFull && (
         <div className="reports-sector-picker">

@@ -58,5 +58,10 @@ export const api = {
     request("/admin/import", {
       method: "POST",
       body: JSON.stringify({ projects })
-    })
+    }),
+
+  sendWelcomeEmail: () =>
+    request("/admin/daily-report/welcome", { method: "POST" }),
+
+  previewWelcomeEmail: () => request("/admin/daily-report/welcome-preview")
 };

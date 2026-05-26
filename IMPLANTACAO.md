@@ -106,6 +106,18 @@ Authorization: Bearer <token>
 
 Status da configuração: `GET /api/admin/daily-report/status`
 
+### E-mail de apresentação (diretoria)
+
+| Variável | Exemplo |
+|----------|---------|
+| `PUBLIC_SITE_URL` | `https://kazulo-workflow-production.up.railway.app` |
+| `WELCOME_LOGIN_USER` | `admin` |
+| `WELCOME_LOGIN_PASSWORD` | senha exibida no e-mail (ex.: para diretores) |
+
+No site, admin → **Relatórios** → **Prévia e-mail apresentação** / **Enviar apresentação**.
+
+Para o login `admin` funcionar com essa senha, defina também `ADMIN_PASSWORD` igual **antes da primeira criação do banco**, ou altere a senha do admin no banco depois.
+
 ## Próximos passos (opcional)
 
 - Trocar senhas por usuário na interface
