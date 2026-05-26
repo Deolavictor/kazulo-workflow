@@ -23,7 +23,8 @@ import {
   getDailyEmailConfigStatus,
   sendDailyOverdueEmail,
   sendWelcomeEmail,
-  buildWelcomeEmailHtml
+  buildWelcomeEmailHtml,
+  verifySmtpConnection
 } from "./dailyEmail.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -167,6 +168,16 @@ app.get("/api/admin/daily-report/status", authMiddleware, requireAdmin, (_req, r
   res.json(getDailyEmailConfigStatus());
 });
 
+app.post("/api/admin/daily-report/verify-smtp", authMiddleware, requireAdmin, async (_req, res) => {
+  try {
+    const result = await verifySmtpConnection();
+    res.json(result);
+  } catch (err) {
+    console.error("[email] verify-smtp:", err);
+    res.status(500).json({ error: err.message || "Falha na conexão SMTP" });
+  }
+});
+
 app.post("/api/admin/daily-report/send", authMiddleware, requireAdmin, async (_req, res) => {
   try {
     const result = await sendDailyOverdueEmail();
@@ -185,6 +196,7 @@ app.post("/api/admin/daily-report/welcome", authMiddleware, requireAdmin, async 
     const result = await sendWelcomeEmail();
     res.json({ ok: true, ...result });
   } catch (err) {
+    console.error("[email] welcome:", err);
     res.status(500).json({ error: err.message || "Falha ao enviar e-mail de apresentação" });
   }
 });
