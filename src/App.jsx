@@ -1619,7 +1619,13 @@ function KanbanProjectCard({
       tabIndex={0}
     >
       <div className="card-title">{project.name}</div>
-      <div className="card-delivery">Entrega: {formatDate(project.deliveryDate)}</div>
+      <div className="card-delivery">
+        Início produção:{" "}
+        {formatDate(
+          project.productionStartDate ||
+            subtractDays(project.deliveryDate, PRODUCTION_LEAD)
+        )}
+      </div>
       <div className="card-badges">
         <span className={`badge ${badge.cls}`}>{badge.text}</span>
         <span className="badge ok">{stage} · {progressPct}%</span>
