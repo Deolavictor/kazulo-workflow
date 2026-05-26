@@ -1031,6 +1031,14 @@ function App() {
             <div className="board-loading">Carregando projetos…</div>
           ) : activeMenu === "Dashboard" ? (
             <DashboardView projects={projects} />
+          ) : activeMenu === "Calendario" ? (
+            <CalendarView
+              projects={projects}
+              onOpenProject={(project) => {
+                setSelectedProject(project);
+                setActiveMenu("Projetos");
+              }}
+            />
           ) : (
           <>
           <div className="board-area">
@@ -1413,6 +1421,241 @@ function App() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+const WEEKDAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+const MONTH_LABELS = [
+  "jan", "fev", "mar", "abr", "mai", "jun",
+  "jul", "ago", "set", "out", "nov", "dez"
+];
+
+function toLocalDateKey(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function startOfWeekMonday(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  const diff = day === 0 ? 6 : day - 1;
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+
+function addCalendarDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function formatWeekRange(weekStart) {
+  const weekEnd = addCalendarDays(weekStart, 6);
+  const s = `${weekStart.getDate()} ${MONTH_LABELS[weekStart.getMonth()]}`;
+  const e = `${weekEnd.getDate()} ${MONTH_LABELS[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`;
+  return `${s} – ${e}`;
+}
+
+function buildCalendarEvents(projects, sectorFilter) {
+  const events = [];
+  projects.forEach((project) => {
+    if (project.completed || isProjectFullyComplete(project)) return;
+
+    ALL_ACTIVITY_KEYS.forEach((itemKey) => {
+      const sector = ACTIVITY_SECTOR[itemKey];
+      if (sectorFilter !== "Todos" && sector !== sectorFilter) return;
+
+      const due = project.checklistDates?.[itemKey];
+      if (!due) return;
+
+      const status = getActivityStatus(project, itemKey);
+      if (status === "done") return;
+
+      events.push({
+        id: `${project.id}-${itemKey}`,
+        date: due,
+        projectId: project.id,
+        projectName: project.name,
+        itemKey,
+        label: CHECKLIST_LABELS[itemKey],
+        sector,
+        status,
+        overdue: status === "late" || isActivityOverdue(project, itemKey)
+      });
+    });
+  });
+  return events;
+}
+
+function CalendarView({ projects, onOpenProject }) {
+  const [weekStart, setWeekStart] = useState(() => startOfWeekMonday(new Date()));
+  const [sectorFilter, setSectorFilter] = useState("Todos");
+
+  const events = buildCalendarEvents(projects, sectorFilter);
+  const weekDays = Array.from({ length: 7 }, (_, i) => addCalendarDays(weekStart, i));
+  const todayKey = toLocalDateKey(new Date());
+
+  const eventsByDate = {};
+  events.forEach((ev) => {
+    if (!eventsByDate[ev.date]) eventsByDate[ev.date] = [];
+    eventsByDate[ev.date].push(ev);
+  });
+
+  Object.values(eventsByDate).forEach((list) => {
+    list.sort((a, b) => {
+      if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
+      return a.label.localeCompare(b.label, "pt-BR");
+    });
+  });
+
+  const weekStartKey = toLocalDateKey(weekStart);
+  const weekEndKey = toLocalDateKey(addCalendarDays(weekStart, 6));
+  const eventsInWeek = events.filter(
+    (e) => e.date >= weekStartKey && e.date <= weekEndKey
+  );
+  const allOverdue = events.filter((e) => e.overdue);
+  const overdueOutsideWeek = allOverdue.filter(
+    (e) => e.date < weekStartKey || e.date > weekEndKey
+  );
+  const weekOverdueCount = allOverdue.filter(
+    (e) => e.date >= weekStartKey && e.date <= weekEndKey
+  ).length;
+
+  return (
+    <div className="calendar-view">
+      <div className="calendar-header">
+        <div>
+          <h2>Calendário</h2>
+          <p>Atividades programadas por semana — itens atrasados em vermelho</p>
+        </div>
+        <div className="calendar-tools">
+          <select
+            className="filter-select"
+            value={sectorFilter}
+            onChange={(e) => setSectorFilter(e.target.value)}
+          >
+            <option value="Todos">Todos os setores</option>
+            {KANBAN_STAGES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="calendar-nav">
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => setWeekStart((w) => addCalendarDays(w, -7))}
+        >
+          ← Semana anterior
+        </button>
+        <div className="calendar-nav-center">
+          <strong>{formatWeekRange(weekStart)}</strong>
+          <span>{eventsInWeek.length} atividade(s) nesta semana</span>
+          {weekOverdueCount > 0 && (
+            <span className="calendar-overdue-badge">{weekOverdueCount} atrasada(s)</span>
+          )}
+        </div>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => setWeekStart((w) => addCalendarDays(w, 7))}
+        >
+          Próxima semana →
+        </button>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => setWeekStart(startOfWeekMonday(new Date()))}
+        >
+          Hoje
+        </button>
+      </div>
+
+      <div className="calendar-legend">
+        <span><i className="legend-swatch late" /> Atrasado</span>
+        <span><i className="legend-swatch on-time" style={{ background: "#3b82f6" }} /> Em andamento</span>
+        <span><i className="legend-swatch open-ok" /> Liberado / bloqueado</span>
+        <span className="calendar-legend-note">Itens concluídos não aparecem no calendário</span>
+      </div>
+
+      {overdueOutsideWeek.length > 0 && (
+        <div className="calendar-overdue-strip">
+          <h4>Atrasados fora desta semana ({overdueOutsideWeek.length})</h4>
+          <div className="calendar-overdue-list">
+            {overdueOutsideWeek.map((ev) => (
+              <button
+                key={`od-${ev.id}`}
+                type="button"
+                className="calendar-event overdue calendar-event--compact"
+                style={{ borderLeftColor: STAGE_THEMES[ev.sector]?.accent }}
+                onClick={() => {
+                  const project = projects.find((p) => p.id === ev.projectId);
+                  if (project) onOpenProject(project);
+                }}
+              >
+                <span className="calendar-event-project">{ev.projectName}</span>
+                <span className="calendar-event-label">{ev.label}</span>
+                <span className="calendar-event-sector">
+                  {formatDate(ev.date)} · {ev.sector}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="calendar-week-grid">
+        {weekDays.map((day, index) => {
+          const dayKey = toLocalDateKey(day);
+          const dayEvents = eventsByDate[dayKey] || [];
+          const isToday = dayKey === todayKey;
+
+          return (
+            <div
+              key={dayKey}
+              className={`calendar-day-column ${isToday ? "is-today" : ""}`}
+            >
+              <div className="calendar-day-head">
+                <span className="calendar-weekday">{WEEKDAY_LABELS[index]}</span>
+                <span className="calendar-day-num">{day.getDate()}</span>
+                <span className="calendar-day-month">{MONTH_LABELS[day.getMonth()]}</span>
+              </div>
+              <div className="calendar-day-body">
+                {dayEvents.length === 0 ? (
+                  <p className="calendar-day-empty">Sem atividades</p>
+                ) : (
+                  dayEvents.map((ev) => {
+                    const theme = STAGE_THEMES[ev.sector];
+                    return (
+                      <button
+                        key={ev.id}
+                        type="button"
+                        className={`calendar-event ${ev.overdue ? "overdue" : ""} ${ev.status === "progress" ? "in-progress" : ""} ${ev.status === "locked" ? "locked" : ""}`}
+                        style={{ borderLeftColor: theme?.accent || "#123D7A" }}
+                        onClick={() => {
+                          const project = projects.find((p) => p.id === ev.projectId);
+                          if (project) onOpenProject(project);
+                        }}
+                        title={`${ev.projectName} — ${ev.label}`}
+                      >
+                        <span className="calendar-event-project">{ev.projectName}</span>
+                        <span className="calendar-event-label">{ev.label}</span>
+                        <span className="calendar-event-sector">{ev.sector}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
