@@ -254,9 +254,26 @@ function isActivityLiberated(project, itemKey) {
   return deps.every((dep) => isActivityDone(project, dep));
 }
 
+/** Itens que dependem deste (direta ou indiretamente) */
+function getTransitiveDependents(rootKey) {
+  const dependents = new Set();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [key, deps] of Object.entries(ACTIVITY_DEPENDENCIES)) {
+      if (dependents.has(key)) continue;
+      if (deps?.some((dep) => dep === rootKey || dependents.has(dep))) {
+        dependents.add(key);
+        changed = true;
+      }
+    }
+  }
+  return dependents;
+}
+
 function getActivityStatus(project, itemKey) {
-  if (isActivityDone(project, itemKey)) return "done";
   if (!isActivityLiberated(project, itemKey)) return "locked";
+  if (isActivityDone(project, itemKey)) return "done";
   if (isActivityInProgress(project, itemKey)) return "progress";
   const due = project.checklistDates?.[itemKey];
   if (isItemLate(due)) return "late";
@@ -652,7 +669,17 @@ function App() {
         message = `"${CHECKLIST_LABELS[item]}" reaberto`;
       }
 
+      const wasParentDone = isActivityDone(project, item);
       activities[item] = nextValue;
+
+      const dependentsToReset =
+        wasParentDone && nextValue !== true ? getTransitiveDependents(item) : null;
+
+      if (dependentsToReset) {
+        dependentsToReset.forEach((depKey) => {
+          if (activities[depKey]) activities[depKey] = false;
+        });
+      }
 
       let next = {
         ...project,
@@ -660,7 +687,7 @@ function App() {
         completed: ALL_ACTIVITY_KEYS.every((key) => activities[key] === true)
       };
 
-      return pushHistory(next, {
+      const historyEntry = {
         message,
         type:
           nextValue === "in_progress"
@@ -668,7 +695,13 @@ function App() {
             : nextValue === true
               ? "check"
               : "edit"
-      });
+      };
+
+      if (dependentsToReset && dependentsToReset.size > 0) {
+        historyEntry.message += ` — ${dependentsToReset.size} item(ns) dependente(s) bloqueado(s) novamente`;
+      }
+
+      return pushHistory(next, historyEntry);
     });
     const changed = updated.find((p) => p.id === projectId);
     if (!changed) return;
