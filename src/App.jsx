@@ -1,7 +1,13 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "./context/AuthContext";
 import { api } from "./api/client";
 import { buildReportFilename, exportElementToPdf } from "./utils/exportReportPdf";
+import { UsuariosView } from "./views/UsuariosView";
+import { ConfiguracoesView } from "./views/ConfiguracoesView";
+import { HistoricoView } from "./views/HistoricoView";
+import { ChangePasswordForm } from "./components/ChangePasswordForm";
+import { KazuloLogo } from "./components/KazuloLogo";
+import { NotificationsPanel } from "./components/NotificationsPanel";
 
 // LEAD TIMES: dias antes do início de produção
 const itemLeadTimes = {
@@ -87,9 +93,12 @@ const MENU_ITEMS = [
   { id: "Calendario", icon: "📅" },
   { id: "Previsoes", icon: "⚠" },
   { id: "Relatorios", icon: "📊" },
-  { id: "Usuarios", icon: "👥" },
-  { id: "Configuracoes", icon: "⚙" }
+  { id: "Historico", icon: "🕐", adminOnly: false },
+  { id: "Usuarios", icon: "👥", adminOnly: true },
+  { id: "Configuracoes", icon: "⚙", adminOnly: true }
 ];
+
+const ADMIN_MENU_IDS = new Set(["Usuarios", "Configuracoes"]);
 
 const STATUS_LEGEND = [
   { label: "Bloqueado", color: "#94a3b8" },
@@ -567,6 +576,15 @@ function App() {
   const [sectorTabs, setSectorTabs] = useState(() =>
     Object.fromEntries(KANBAN_STAGES.map((s) => [s, "open"]))
   );
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifLoading, setNotifLoading] = useState(false);
+
+  const visibleMenuItems = useMemo(
+    () => MENU_ITEMS.filter((item) => isAdmin || !item.adminOnly),
+    [isAdmin]
+  );
 
   const displayName = user?.name || "Usuário";
   const userInitials = displayName
@@ -629,6 +647,55 @@ function App() {
   useEffect(() => {
     if (user) loadProjects();
   }, [user, loadProjects]);
+
+  const loadNotifications = useCallback(async () => {
+    if (!user) return;
+    setNotifLoading(true);
+    try {
+      const data = await api.fetchNotifications();
+      setNotifications(data.notifications || []);
+      setUnreadCount(data.unreadCount ?? 0);
+    } catch {
+      /* silencioso — não bloqueia o app */
+    } finally {
+      setNotifLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 120000);
+    return () => clearInterval(interval);
+  }, [user, loadNotifications, projects]);
+
+  async function handleMarkAllNotificationsRead() {
+    try {
+      await api.markNotificationsRead({ all: true });
+      await loadNotifications();
+    } catch (err) {
+      alert(err.message || "Falha ao marcar como lidas");
+    }
+  }
+
+  async function handleOpenNotification(n) {
+    if (!n.read) {
+      try {
+        await api.markNotificationsRead({ ids: [n.id] });
+      } catch {
+        /* segue navegação */
+      }
+    }
+    setNotifOpen(false);
+    const project = projects.find((p) => p.id === n.projectId);
+    if (project) {
+      setSelectedProject(project);
+      setActiveMenu(n.href?.menu || "Projetos");
+    } else if (n.href?.menu) {
+      setActiveMenu(n.href.menu);
+    }
+    await loadNotifications();
+  }
 
   async function saveProject(project) {
     const { project: saved } = await api.updateProject(project);
@@ -930,12 +997,9 @@ function App() {
 
       <aside className="sidebar">
         <div>
-          <div className="sidebar-logo">
-            <h1>KAZULO</h1>
-            <p>Workflow Industrial</p>
-          </div>
+          <KazuloLogo variant="sidebar" />
           <nav className="sidebar-nav">
-            {MENU_ITEMS.map((item) => (
+            {visibleMenuItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -949,15 +1013,23 @@ function App() {
                     ? "Previsões"
                     : item.id === "Relatorios"
                       ? "Relatórios"
-                      : item.id === "Usuarios"
-                        ? "Usuários"
-                        : item.id === "Configuracoes"
-                          ? "Configurações"
-                          : item.id}
+                      : item.id === "Historico"
+                        ? "Histórico"
+                        : item.id === "Usuarios"
+                          ? "Usuários"
+                          : item.id === "Configuracoes"
+                            ? "Configurações"
+                            : item.id}
               </button>
             ))}
           </nav>
         </div>
+        {!isAdmin && (
+          <details className="sidebar-password">
+            <summary>Alterar senha</summary>
+            <ChangePasswordForm compact />
+          </details>
+        )}
         <button type="button" className="sidebar-logout" onClick={logout} title="Encerrar sessão">
           <span className="logout-icon" aria-hidden>⎋</span>
           Sair / Logout
@@ -999,10 +1071,31 @@ function App() {
             </div>
           </div>
           <div className="user-area">
-            <button type="button" className="notif-btn" aria-label="Notificações">
-              🔔
-              <span className="notif-badge">3</span>
-            </button>
+            <div className="notif-wrap">
+              <button
+                type="button"
+                className="notif-btn"
+                aria-label="Notificações"
+                aria-expanded={notifOpen}
+                onClick={() => setNotifOpen((o) => !o)}
+              >
+                🔔
+                {unreadCount > 0 && (
+                  <span className="notif-badge">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </button>
+              <NotificationsPanel
+                open={notifOpen}
+                onClose={() => setNotifOpen(false)}
+                notifications={notifications}
+                unreadCount={unreadCount}
+                loading={notifLoading}
+                onMarkAllRead={handleMarkAllNotificationsRead}
+                onOpenNotification={handleOpenNotification}
+              />
+            </div>
             <div className="user-chip">
               <div className="user-avatar">{userInitials}</div>
               <div>
@@ -1062,6 +1155,21 @@ function App() {
                 setActiveMenu("Projetos");
               }}
             />
+          ) : activeMenu === "Historico" ? (
+            <HistoricoView
+              projects={projects}
+              onOpenProject={(project) => {
+                setSelectedProject(project);
+                setDetailTab("historico");
+                setActiveMenu("Projetos");
+              }}
+            />
+          ) : activeMenu === "Usuarios" && isAdmin ? (
+            <UsuariosView currentUserId={user?.id} />
+          ) : activeMenu === "Configuracoes" && isAdmin ? (
+            <ConfiguracoesView />
+          ) : ADMIN_MENU_IDS.has(activeMenu) ? (
+            <div className="board-loading">Acesso restrito ao administrador.</div>
           ) : (
           <>
           <div className="board-area">

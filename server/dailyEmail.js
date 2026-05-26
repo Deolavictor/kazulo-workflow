@@ -2,6 +2,7 @@ import { getAllProjects } from "./db.js";
 import { buildDailyOverdueReport } from "./overdueReport.js";
 import { formatDateBr } from "./workflowCalculations.js";
 import { buildWelcomeEmailHtml as buildWelcomeHtml } from "./welcomeEmailTemplate.js";
+import { getSetting } from "./appSettings.js";
 import {
   sendEmail,
   isEmailConfigured,
@@ -163,7 +164,7 @@ const DEFAULT_SITE_URL = "https://kazulo-workflow-production.up.railway.app";
 
 function getWelcomeConfig() {
   return {
-    siteUrl: (process.env.PUBLIC_SITE_URL || DEFAULT_SITE_URL).replace(/\/$/, ""),
+    siteUrl: (getSetting("public_site_url") || DEFAULT_SITE_URL).replace(/\/$/, ""),
     loginUser: process.env.WELCOME_LOGIN_USER || "admin",
     loginPassword: process.env.WELCOME_LOGIN_PASSWORD || ""
   };

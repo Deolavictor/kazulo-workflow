@@ -79,7 +79,7 @@ export function getSectorItems(stage) {
   return Object.keys(SECTOR_CHECKLISTS[stage] || {});
 }
 
-function isProjectFullyComplete(project) {
+export function isProjectFullyComplete(project) {
   const keys = Object.keys(SECTOR_CHECKLISTS).flatMap((s) =>
     Object.keys(SECTOR_CHECKLISTS[s])
   );

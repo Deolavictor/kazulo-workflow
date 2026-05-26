@@ -3,7 +3,13 @@ import { sendDailyOverdueEmail, getDailyEmailConfigStatus } from "./dailyEmail.j
 
 let scheduledTask = null;
 
+export function restartDailyReportScheduler() {
+  stopDailyReportScheduler();
+  startDailyReportScheduler();
+}
+
 export function startDailyReportScheduler() {
+  stopDailyReportScheduler();
   const status = getDailyEmailConfigStatus();
 
   if (!status.enabled) {

@@ -1,9 +1,10 @@
 import nodemailer from "nodemailer";
+import { getSetting } from "./appSettings.js";
 
 /** Railway Hobby bloqueia SMTP (587). Use BREVO_API_KEY ou RESEND_API_KEY. */
 
 function parseRawRecipients() {
-  const raw = process.env.DAILY_REPORT_TO || "";
+  const raw = getSetting("daily_report_to") || "";
   return raw
     .split(/[,;]/)
     .map((e) => e.trim())
@@ -35,10 +36,10 @@ function getEmailProvider() {
 
 function getSender() {
   const email =
-    process.env.EMAIL_SENDER_EMAIL?.trim() ||
+    getSetting("email_sender_email") ||
     process.env.SMTP_USER?.trim() ||
     "";
-  const name = process.env.EMAIL_SENDER_NAME?.trim() || "KAZULO Workflow";
+  const name = getSetting("email_sender_name") || "KAZULO Workflow";
   if (!email) return null;
   return { name, email };
 }
@@ -221,14 +222,16 @@ export function getDailyEmailConfigStatus() {
     missing.push("EMAIL_SENDER_EMAIL");
   }
 
+  const enabled = getSetting("daily_report_enabled");
   return {
-    enabled: process.env.DAILY_REPORT_ENABLED !== "false",
+    enabled,
     provider,
     recipients: parseRawRecipients(),
-    cron: process.env.DAILY_REPORT_CRON || "0 17 * * 1-5",
-    timezone: process.env.DAILY_REPORT_TZ || "America/Sao_Paulo",
+    cron: getSetting("daily_report_cron") || "0 17 * * 1-5",
+    timezone: getSetting("daily_report_tz") || "America/Sao_Paulo",
     senderEmail: getSender()?.email || null,
-    ready: isEmailConfigured() && process.env.DAILY_REPORT_ENABLED !== "false",
+    senderName: getSender()?.name || null,
+    ready: isEmailConfigured() && enabled,
     missingVars: missing,
     railwayHint:
       provider === "smtp"

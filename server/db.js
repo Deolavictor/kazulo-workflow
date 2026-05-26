@@ -28,6 +28,18 @@ db.exec(`
     data TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS notification_reads (
+    user_id INTEGER NOT NULL,
+    notification_id TEXT NOT NULL,
+    read_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (user_id, notification_id)
+  );
 `);
 
 const userCount = db.prepare("SELECT COUNT(*) AS c FROM users").get().c;
@@ -89,6 +101,146 @@ export function listUsersPublic() {
     .all();
 }
 
+const SECTOR_VALUES = ["Design", "Processos", "Desenvolvimento", "PCP", "Compras"];
+
+export function createUser({ username, password, name, role, sector }) {
+  const uname = String(username).trim().toLowerCase();
+  if (!uname || !password || !name) {
+    return { ok: false, error: "Usuário, senha e nome são obrigatórios" };
+  }
+  if (!["admin", "sector"].includes(role)) {
+    return { ok: false, error: "Perfil inválido" };
+  }
+  if (role === "sector" && !SECTOR_VALUES.includes(sector)) {
+    return { ok: false, error: "Setor inválido" };
+  }
+  if (findUserByUsername(uname)) {
+    return { ok: false, error: "Nome de usuário já existe" };
+  }
+
+  const result = db
+    .prepare(
+      `INSERT INTO users (username, password_hash, name, role, sector)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .run(
+      uname,
+      bcrypt.hashSync(password, 10),
+      String(name).trim(),
+      role,
+      role === "sector" ? sector : null
+    );
+
+  return { ok: true, user: findUserById(result.lastInsertRowid) };
+}
+
+export function updateUser(id, { name, sector, role }) {
+  const existing = findUserById(id);
+  if (!existing) return { ok: false, error: "Usuário não encontrado" };
+
+  const nextRole = role ?? existing.role;
+  const nextSector =
+    nextRole === "admin" ? null : sector ?? existing.sector;
+
+  if (nextRole === "sector" && !SECTOR_VALUES.includes(nextSector)) {
+    return { ok: false, error: "Setor inválido" };
+  }
+
+  const nextName = name != null ? String(name).trim() : existing.name;
+  if (!nextName) return { ok: false, error: "Nome obrigatório" };
+
+  db.prepare(
+    `UPDATE users SET name = ?, role = ?, sector = ? WHERE id = ?`
+  ).run(nextName, nextRole, nextSector, id);
+
+  return { ok: true, user: findUserById(id) };
+}
+
+export function setUserPassword(id, newPassword) {
+  if (!newPassword || String(newPassword).length < 4) {
+    return { ok: false, error: "Senha deve ter pelo menos 4 caracteres" };
+  }
+  const existing = findUserById(id);
+  if (!existing) return { ok: false, error: "Usuário não encontrado" };
+
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(
+    bcrypt.hashSync(newPassword, 10),
+    id
+  );
+  return { ok: true };
+}
+
+export function changeUserPassword(id, currentPassword, newPassword) {
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(id);
+  if (!row) return { ok: false, error: "Usuário não encontrado" };
+  if (!bcrypt.compareSync(currentPassword, row.password_hash)) {
+    return { ok: false, error: "Senha atual incorreta" };
+  }
+  return setUserPassword(id, newPassword);
+}
+
+export function deleteUser(id, actingUserId) {
+  if (id === actingUserId) {
+    return { ok: false, error: "Você não pode excluir sua própria conta" };
+  }
+  const target = findUserById(id);
+  if (!target) return { ok: false, error: "Usuário não encontrado" };
+
+  if (target.role === "admin") {
+    const admins = db
+      .prepare("SELECT COUNT(*) AS c FROM users WHERE role = 'admin'")
+      .get().c;
+    if (admins <= 1) {
+      return { ok: false, error: "Não é possível remover o último administrador" };
+    }
+  }
+
+  db.prepare("DELETE FROM users WHERE id = ?").run(id);
+  return { ok: true };
+}
+
+export function getGlobalHistory({ limit = 500, q = "", projectId = null } = {}) {
+  const projects = getAllProjects();
+  const needle = String(q || "")
+    .trim()
+    .toLowerCase();
+  const pid = projectId != null && projectId !== "" ? Number(projectId) : null;
+
+  const events = [];
+  for (const p of projects) {
+    if (pid != null && !Number.isNaN(pid) && p.id !== pid) continue;
+    for (const ev of p.history || []) {
+      events.push({
+        ...ev,
+        projectId: p.id,
+        projectName: p.name,
+        client: p.client
+      });
+    }
+  }
+
+  events.sort((a, b) => new Date(b.at) - new Date(a.at));
+
+  const filtered = needle
+    ? events.filter((ev) => {
+        const blob = [
+          ev.message,
+          ev.user,
+          ev.type,
+          ev.projectName,
+          ev.client
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return blob.includes(needle);
+      })
+    : events;
+
+  const max = Math.min(Math.max(Number(limit) || 500, 1), 2000);
+  return filtered.slice(0, max);
+}
+
 export function getAllProjects() {
   const rows = db.prepare("SELECT data FROM projects ORDER BY id").all();
   return rows.map((r) => JSON.parse(r.data));
@@ -120,4 +272,32 @@ export function projectExists(id) {
   return !!db.prepare("SELECT 1 FROM projects WHERE id = ?").get(id);
 }
 
-export { KANBAN_STAGES };
+export function getDbPath() {
+  return dbPath;
+}
+
+export function getReadNotificationIds(userId) {
+  return db
+    .prepare("SELECT notification_id FROM notification_reads WHERE user_id = ?")
+    .all(userId)
+    .map((r) => r.notification_id);
+}
+
+export function markNotificationsRead(userId, ids) {
+  if (!ids?.length) return;
+  const insert = db.prepare(`
+    INSERT INTO notification_reads (user_id, notification_id)
+    VALUES (?, ?)
+    ON CONFLICT(user_id, notification_id) DO NOTHING
+  `);
+  const tx = db.transaction((list) => {
+    for (const id of list) insert.run(userId, id);
+  });
+  tx(ids);
+}
+
+export function markAllNotificationsRead(userId, notificationIds) {
+  markNotificationsRead(userId, notificationIds);
+}
+
+export { KANBAN_STAGES, db, SECTOR_VALUES };

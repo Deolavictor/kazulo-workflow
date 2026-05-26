@@ -1,0 +1,25 @@
+{
+  "name": "KAZULO Workflow Industrial",
+  "short_name": "KAZULO",
+  "description": "Acompanhamento de projetos e produção industrial Kazulo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f2744",
+  "theme_color": "#123d7a",
+  "lang": "pt-BR",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/kazulo-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/kazulo-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

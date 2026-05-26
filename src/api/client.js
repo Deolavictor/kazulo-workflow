@@ -58,5 +58,83 @@ export const api = {
     request("/admin/import", {
       method: "POST",
       body: JSON.stringify({ projects })
-    })
+    }),
+
+  fetchUsers: () => request("/users"),
+
+  createUser: (body) =>
+    request("/users", { method: "POST", body: JSON.stringify(body) }),
+
+  updateUser: (id, body) =>
+    request(`/users/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+
+  resetUserPassword: (id, password) =>
+    request(`/users/${id}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify({ password })
+    }),
+
+  deleteUser: (id) => request(`/users/${id}`, { method: "DELETE" }),
+
+  changePassword: (currentPassword, newPassword) =>
+    request("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword })
+    }),
+
+  fetchHistory: (params = {}) => {
+    const qs = new URLSearchParams();
+    if (params.limit) qs.set("limit", params.limit);
+    if (params.q) qs.set("q", params.q);
+    if (params.projectId) qs.set("projectId", params.projectId);
+    const query = qs.toString();
+    return request(`/history${query ? `?${query}` : ""}`);
+  },
+
+  fetchSettings: () => request("/admin/settings"),
+
+  updateSettings: (settings) =>
+    request("/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify({ settings })
+    }),
+
+  dailyReportStatus: () => request("/admin/daily-report/status"),
+
+  verifyEmail: () =>
+    request("/admin/daily-report/verify-smtp", { method: "POST" }),
+
+  sendDailyReport: () =>
+    request("/admin/daily-report/send", { method: "POST" }),
+
+  fetchNotifications: () => request("/notifications"),
+
+  markNotificationsRead: (body) =>
+    request("/notifications/read", {
+      method: "POST",
+      body: JSON.stringify(body)
+    }),
+
+  fetchBackups: () => request("/admin/backups"),
+
+  runBackup: () => request("/admin/backups/run", { method: "POST" }),
+
+  downloadBackup: async (filename) => {
+    const token = getToken();
+    const res = await fetch(
+      `${API_BASE}/api/admin/backups/${encodeURIComponent(filename)}`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+    );
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `Erro ${res.status}`);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 };

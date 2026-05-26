@@ -1,16 +1,47 @@
-# React + Vite
+# KAZULO Workflow Industrial
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Sistema de acompanhamento de projetos (Kanban por setor, dashboard, calendário, previsões, relatórios PDF, e-mail diário de atrasos).
 
-Currently, two official plugins are available:
+## Desenvolvimento local
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev:all
+```
 
-## React Compiler
+- Frontend: http://localhost:5173  
+- API: http://localhost:3001  
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Copie `.env.example` para `.env` e ajuste senhas/chaves.
 
-## Expanding the ESLint configuration
+## Produção (Railway)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+npm run build
+npm start
+```
+
+Variáveis importantes: `JWT_SECRET`, `BREVO_API_KEY`, `DAILY_REPORT_TO`, `DB_PATH` (volume `/data` recomendado).
+
+## Etapas do produto
+
+| Etapa | Conteúdo |
+|-------|----------|
+| 1 | Usuários, configurações (painel), histórico geral |
+| 2 | Notificações, logo, backup automático, PWA, guia de domínio |
+
+### Notificações
+
+Alertas por atraso de atividade, bloqueio de produção e entrega em até 3 dias — filtrados por setor (ou todos para admin). Marcar como lidas no sino.
+
+### Backup
+
+Cópias em `server/data/backups` (ou `BACKUP_DIR`). Agendamento padrão: 03:00 diário. Admin: **Configurações → Backup**.
+
+### PWA
+
+Após deploy, abra o site no Chrome/Edge → instalar aplicativo. Service worker em `/sw.js` (cache da interface; API sempre online).
+
+### Domínio próprio
+
+Passo a passo: [docs/DOMINIO.md](docs/DOMINIO.md)
