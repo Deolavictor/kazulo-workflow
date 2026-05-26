@@ -101,6 +101,18 @@ const MENU_ITEMS = [
 
 const ADMIN_MENU_IDS = new Set(["Usuarios", "Configuracoes"]);
 
+const MENU_LABELS = {
+  Dashboard: "Dashboard",
+  Projetos: "Projetos",
+  Calendario: "Calendário",
+  Previsoes: "Previsões",
+  Relatorios: "Relatórios",
+  Historico: "Histórico",
+  Chat: "Chat",
+  Usuarios: "Usuários",
+  Configuracoes: "Configurações"
+};
+
 const STATUS_LEGEND = [
   { label: "Bloqueado", color: "#94a3b8" },
   { label: "Liberado", variant: "liberado" },
@@ -582,6 +594,7 @@ function App() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifLoading, setNotifLoading] = useState(false);
   const [chatInitialChannel, setChatInitialChannel] = useState("geral");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const visibleMenuItems = useMemo(
     () => MENU_ITEMS.filter((item) => isAdmin || !item.adminOnly),
@@ -649,6 +662,25 @@ function App() {
   useEffect(() => {
     if (user) loadProjects();
   }, [user, loadProjects]);
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [activeMenu]);
+
+  useEffect(() => {
+    if (!selectedProject) return;
+    const prev = document.body.style.overflow;
+    const mq = window.matchMedia("(max-width: 768px)");
+    const apply = () => {
+      document.body.style.overflow = mq.matches ? "hidden" : prev;
+    };
+    apply();
+    mq.addEventListener("change", apply);
+    return () => {
+      mq.removeEventListener("change", apply);
+      document.body.style.overflow = prev;
+    };
+  }, [selectedProject]);
 
   const loadNotifications = useCallback(async () => {
     if (!user) return;
@@ -1000,8 +1032,23 @@ function App() {
     </>
   );
 
+  function navigateMenu(menuId) {
+    setActiveMenu(menuId);
+    setMobileNavOpen(false);
+    setNotifOpen(false);
+  }
+
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell ${mobileNavOpen ? "nav-open" : ""} ${selectedProject ? "detail-open" : ""}`}
+    >
+      <button
+        type="button"
+        className="sidebar-overlay"
+        aria-label="Fechar menu"
+        tabIndex={mobileNavOpen ? 0 : -1}
+        onClick={() => setMobileNavOpen(false)}
+      />
 
       <aside className="sidebar">
         <div>
@@ -1015,7 +1062,7 @@ function App() {
                 key={item.id}
                 type="button"
                 className={`nav-item ${activeMenu === item.id ? "active" : ""}`}
-                onClick={() => setActiveMenu(item.id)}
+                onClick={() => navigateMenu(item.id)}
               >
                 <span className="nav-icon">{item.icon}</span>
                 {item.id === "Calendario"
@@ -1053,6 +1100,50 @@ function App() {
 
 
         <div className="top-bar">
+          <div className="top-bar-toolbar">
+            <button
+              type="button"
+              className="mobile-menu-btn"
+              aria-label="Abrir menu"
+              onClick={() => setMobileNavOpen(true)}
+            >
+              ☰
+            </button>
+            <div className="top-bar-toolbar-title">
+              <span className="top-bar-toolbar-brand">KAZULO</span>
+              <span className="top-bar-toolbar-page">
+                {MENU_LABELS[activeMenu] || activeMenu}
+              </span>
+            </div>
+            <div className="top-bar-toolbar-actions">
+              <div className="notif-wrap">
+                <button
+                  type="button"
+                  className="notif-btn"
+                  aria-label="Notificações"
+                  aria-expanded={notifOpen}
+                  onClick={() => setNotifOpen((o) => !o)}
+                >
+                  🔔
+                  {unreadCount > 0 && (
+                    <span className="notif-badge">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </button>
+                <NotificationsPanel
+                  open={notifOpen}
+                  onClose={() => setNotifOpen(false)}
+                  notifications={notifications}
+                  unreadCount={unreadCount}
+                  loading={notifLoading}
+                  onMarkAllRead={handleMarkAllNotificationsRead}
+                  onOpenNotification={handleOpenNotification}
+                />
+              </div>
+              <div className="user-avatar user-avatar--toolbar">{userInitials}</div>
+            </div>
+          </div>
           <div className="stats-grid">
             <div className="stat-card blue">
               <div>
@@ -1083,7 +1174,7 @@ function App() {
               <div className="stat-icon">✓</div>
             </div>
           </div>
-          <div className="user-area">
+          <div className="user-area user-area--desktop">
             <div className="notif-wrap">
               <button
                 type="button"
@@ -1129,7 +1220,7 @@ function App() {
           </div>
         </div>
 
-        <div className="workspace">
+        <div className={`workspace ${selectedProject ? "has-detail" : ""}`}>
           {syncError && (
             <div className="sync-error-banner">{syncError}</div>
           )}
