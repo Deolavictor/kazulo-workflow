@@ -84,7 +84,7 @@ const MENU_ITEMS = [
   { id: "Dashboard", icon: "▣" },
   { id: "Projetos", icon: "☰" },
   { id: "Calendario", icon: "📅" },
-  { id: "Historico", icon: "🕐" },
+  { id: "Previsoes", icon: "⚠" },
   { id: "Relatorios", icon: "📊" },
   { id: "Usuarios", icon: "👥" },
   { id: "Configuracoes", icon: "⚙" }
@@ -944,8 +944,8 @@ function App() {
                 <span className="nav-icon">{item.icon}</span>
                 {item.id === "Calendario"
                   ? "Calendário"
-                  : item.id === "Historico"
-                    ? "Histórico"
+                  : item.id === "Previsoes"
+                    ? "Previsões"
                     : item.id === "Relatorios"
                       ? "Relatórios"
                       : item.id === "Usuarios"
@@ -1033,6 +1033,16 @@ function App() {
             <DashboardView projects={projects} />
           ) : activeMenu === "Calendario" ? (
             <CalendarView
+              projects={projects}
+              isAdmin={isAdmin}
+              userSector={user?.sector}
+              onOpenProject={(project) => {
+                setSelectedProject(project);
+                setActiveMenu("Projetos");
+              }}
+            />
+          ) : activeMenu === "Previsoes" ? (
+            <PrevisoesView
               projects={projects}
               isAdmin={isAdmin}
               userSector={user?.sector}
@@ -1491,6 +1501,209 @@ function buildCalendarEvents(projects, sectorFilter) {
     });
   });
   return events;
+}
+
+/** Atividades obrigatórias antes do início de produção */
+const PRODUCTION_GATE_KEYS = [
+  "projeto",
+  "listaMateriais",
+  "fo",
+  "programaLaser",
+  "foProducao",
+  "solicitacaoCompras",
+  "opFo",
+  "mpAco",
+  "mpPsai"
+];
+
+function getDaysLate(dueDateStr) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDateStr);
+  due.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.ceil((today - due) / (1000 * 60 * 60 * 24)));
+}
+
+function buildProductionForecasts(projects, sectorFilter) {
+  const forecasts = [];
+
+  projects.forEach((project) => {
+    if (project.completed || isProjectFullyComplete(project)) return;
+
+    const blockers = PRODUCTION_GATE_KEYS.map((key) => {
+      if (isActivityDone(project, key)) return null;
+      const due = project.checklistDates?.[key];
+      if (!due || !isItemLate(due)) return null;
+      return {
+        key,
+        label: CHECKLIST_LABELS[key],
+        sector: ACTIVITY_SECTOR[key],
+        dueDate: due,
+        daysLate: getDaysLate(due)
+      };
+    }).filter(Boolean);
+
+    if (blockers.length === 0) return;
+
+    const visibleBlockers =
+      sectorFilter === "Todos"
+        ? blockers
+        : blockers.filter((b) => b.sector === sectorFilter);
+
+    if (visibleBlockers.length === 0) return;
+
+    forecasts.push({
+      project,
+      productionStart:
+        project.productionStartDate ||
+        subtractDays(project.deliveryDate, PRODUCTION_LEAD),
+      blockers: visibleBlockers
+    });
+  });
+
+  forecasts.sort((a, b) => {
+    const maxLateA = Math.max(...a.blockers.map((b) => b.daysLate));
+    const maxLateB = Math.max(...b.blockers.map((b) => b.daysLate));
+    if (maxLateB !== maxLateA) return maxLateB - maxLateA;
+    return new Date(a.productionStart) - new Date(b.productionStart);
+  });
+
+  return forecasts;
+}
+
+function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
+  const [sectorFilter, setSectorFilter] = useState("Todos");
+  const effectiveFilter = isAdmin ? sectorFilter : userSector || "Todos";
+  const forecasts = buildProductionForecasts(projects, effectiveFilter);
+
+  return (
+    <div className="forecasts-view">
+      <div className="forecasts-header">
+        <div>
+          <h2>Previsões</h2>
+          <p>
+            {isAdmin
+              ? "Projetos com risco de atrasar o início de produção por atividade crítica vencida"
+              : `Alertas do setor ${userSector} que podem impactar o início de produção`}
+          </p>
+        </div>
+        {isAdmin && (
+          <select
+            className="filter-select"
+            value={sectorFilter}
+            onChange={(e) => setSectorFilter(e.target.value)}
+          >
+            <option value="Todos">Todos os setores</option>
+            {KANBAN_STAGES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      <div className="forecasts-summary">
+        <div className="forecasts-stat danger">
+          <span className="forecasts-stat-value">{forecasts.length}</span>
+          <span className="forecasts-stat-label">projeto(s) em risco</span>
+        </div>
+        <div className="forecasts-stat">
+          <span className="forecasts-stat-value">{PRODUCTION_GATE_KEYS.length}</span>
+          <span className="forecasts-stat-label">itens críticos monitorados</span>
+        </div>
+      </div>
+
+      <div className="forecasts-gate-legend">
+        <span className="forecasts-gate-title">Itens exigidos para iniciar produção:</span>
+        {PRODUCTION_GATE_KEYS.map((key) => (
+          <span key={key} className="forecasts-gate-chip">
+            {CHECKLIST_LABELS[key]}
+          </span>
+        ))}
+      </div>
+
+      {forecasts.length === 0 ? (
+        <div className="forecasts-empty">
+          <span className="forecasts-empty-icon">✓</span>
+          <h3>Nenhum risco identificado</h3>
+          <p>
+            Nenhuma atividade crítica está atrasada
+            {effectiveFilter !== "Todos" ? ` no setor ${effectiveFilter}` : ""}.
+          </p>
+        </div>
+      ) : (
+        <div className="forecasts-list">
+          {forecasts.map(({ project, productionStart, blockers }) => (
+            <article key={project.id} className="forecast-card">
+              <div className="forecast-card-top">
+                <div>
+                  <h3>{project.name}</h3>
+                  <p className="forecast-client">{project.client}</p>
+                </div>
+                <div className="forecast-dates">
+                  <div>
+                    <span className="forecast-date-label">Início produção previsto</span>
+                    <strong className="forecast-date-value at-risk">
+                      {formatDate(productionStart)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="forecast-date-label">Entrega</span>
+                    <strong className="forecast-date-value">
+                      {formatDate(project.deliveryDate)}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="forecast-alert-banner">
+                <span className="forecast-alert-icon">⚠</span>
+                <p>
+                  Este produto pode <strong>atrasar o início de produção</strong> por pendência
+                  vencida nos setores abaixo.
+                </p>
+              </div>
+
+              <ul className="forecast-blockers">
+                {blockers.map((b) => {
+                  const theme = STAGE_THEMES[b.sector];
+                  return (
+                    <li key={b.key} className="forecast-blocker">
+                      <div
+                        className="forecast-blocker-sector"
+                        style={{
+                          background: theme?.bg,
+                          color: theme?.accent,
+                          borderColor: theme?.accent
+                        }}
+                      >
+                        <span>{theme?.icon}</span>
+                        <strong>{b.sector}</strong>
+                      </div>
+                      <div className="forecast-blocker-detail">
+                        <span className="forecast-blocker-activity">{b.label}</span>
+                        <span className="forecast-blocker-meta">
+                          Prazo {formatDate(b.dueDate)} ·{" "}
+                          <strong className="late">{b.daysLate} dia(s) de atraso</strong>
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <button
+                type="button"
+                className="btn-secondary forecast-open-btn"
+                onClick={() => onOpenProject(project)}
+              >
+                Ver projeto no fluxo →
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function CalendarView({ projects, onOpenProject, isAdmin, userSector }) {
