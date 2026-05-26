@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="60" viewBox="0 0 240 60" role="img" aria-label="KAZULO Workflow Industrial">
+  <rect x="0" y="6" width="52" height="48" rx="14" fill="#ffffff" fill-opacity="0.2"/>
+  <path fill="#ffffff" d="M14 18h6.2c5 0 8 2.6 8 6.9 0 3-1.5 5.1-4 6l4.2 7.1h-6.5l-3.9-6.9h-3V18H14zm5.8 10.4h.9c2 0 3.1-.9 3.1-2.6 0-1.7-1.1-2.6-3.1-2.6h-.9v5.2z"/>
+  <text x="64" y="36" fill="#ffffff" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="28" font-weight="700" letter-spacing="0.05em">KAZULO</text>
+  <text x="64" y="50" fill="#c8dcf5" font-family="Segoe UI, Arial, Helvetica, sans-serif" font-size="9.5" font-weight="600" letter-spacing="0.28em">WORKFLOW INDUSTRIAL</text>
+</svg>

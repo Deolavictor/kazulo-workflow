@@ -2369,9 +2369,9 @@ body,
 
 .welcome-email-preview-frame {
   width: 100%;
-  min-height: 520px;
+  min-height: 720px;
   border: none;
-  background: #fff;
+  background: #dce8f8;
 }
 
 .report-pdf-root {
