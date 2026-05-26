@@ -77,6 +77,35 @@ Use **Nginx** ou **Caddy** na frente:
 | Criar / excluir projeto | Sim | Não |
 | Alterar data de entrega / observações | Sim | Não |
 
+## E-mail diário (atividades em atraso)
+
+No fim do dia útil o servidor pode enviar um e-mail com **todas as tarefas em atraso**, separadas por setor (mesma regra da aba Relatórios).
+
+### Variáveis no Railway / `.env`
+
+| Variável | Exemplo | Descrição |
+|----------|---------|-----------|
+| `DAILY_REPORT_ENABLED` | `true` | `false` desliga o agendamento |
+| `DAILY_REPORT_TO` | `gestor@empresa.com.br` | Destinatário(s), separados por vírgula |
+| `DAILY_REPORT_CRON` | `0 17 * * 1-5` | Horário (padrão: 17h seg–sex) |
+| `DAILY_REPORT_TZ` | `America/Sao_Paulo` | Fuso horário |
+| `SMTP_HOST` | `smtp.gmail.com` | Servidor SMTP |
+| `SMTP_PORT` | `587` | Porta |
+| `SMTP_USER` | seu e-mail | Login SMTP |
+| `SMTP_PASS` | senha de app | Senha (Gmail: “Senha de app”) |
+| `SMTP_FROM` | `KAZULO <...>` | Remetente exibido |
+
+### Testar antes do horário
+
+Com login **admin**, envie manualmente:
+
+```http
+POST /api/admin/daily-report/send
+Authorization: Bearer <token>
+```
+
+Status da configuração: `GET /api/admin/daily-report/status`
+
 ## Próximos passos (opcional)
 
 - Trocar senhas por usuário na interface

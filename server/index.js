@@ -18,6 +18,11 @@ import {
 } from "./db.js";
 import { validateProjectUpdate } from "./validateProject.js";
 import { canUserEditProjectMeta } from "./workflowRules.js";
+import { startDailyReportScheduler } from "./dailyScheduler.js";
+import {
+  getDailyEmailConfigStatus,
+  sendDailyOverdueEmail
+} from "./dailyEmail.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 3001;
@@ -156,6 +161,19 @@ app.post("/api/admin/import", authMiddleware, requireAdmin, (req, res) => {
   res.json({ imported, total: getAllProjects().length });
 });
 
+app.get("/api/admin/daily-report/status", authMiddleware, requireAdmin, (_req, res) => {
+  res.json(getDailyEmailConfigStatus());
+});
+
+app.post("/api/admin/daily-report/send", authMiddleware, requireAdmin, async (_req, res) => {
+  try {
+    const result = await sendDailyOverdueEmail();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Falha ao enviar e-mail" });
+  }
+});
+
 if (process.env.NODE_ENV === "production") {
   const distPath = path.join(__dirname, "..", "dist");
   app.use(express.static(distPath));
@@ -169,4 +187,5 @@ app.listen(PORT, () => {
   if (process.env.NODE_ENV === "production") {
     console.log("[kazulo] Frontend estático servido de /dist");
   }
+  startDailyReportScheduler();
 });
