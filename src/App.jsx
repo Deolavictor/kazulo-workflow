@@ -1453,6 +1453,11 @@ function App() {
                       </div>
                       <div className="kanban-count">{stageProjects.length}</div>
                     </div>
+                    {stage === "Compras" && (
+                      <p className="kanban-compras-supplier-note">
+                        Campo <strong>Fornecedor</strong> (data) à esquerda de cada item no card.
+                      </p>
+                    )}
                     <div className="kanban-column-tabs">
                       <button
                         type="button"
@@ -1591,6 +1596,11 @@ function App() {
                     {kanbanStages.map((stageName) => (
                       <div key={stageName} className="checklist-sector-group">
                         <p className="checklist-sector-title">{stageName}</p>
+                        {stageName === "Compras" && (
+                          <p className="checklist-supplier-panel-hint">
+                            Prazo do fornecedor (data) — editável pelo setor Compras em cada item abaixo.
+                          </p>
+                        )}
                         {getSectorItems(stageName).map((item) => {
                           const status = getActivityStatus(selectedProject, item);
                           const dueDate = selectedProject.checklistDates?.[item];
@@ -1608,22 +1618,51 @@ function App() {
                                     ? "late"
                                     : "pending";
 
+                          const supplierRisk =
+                            stageName === "Compras" &&
+                            isSupplierDeadlineBlockingProduction(selectedProject, item);
+                          const supplierDate =
+                            selectedProject.supplierDeadlines?.[item] || "";
+
                           if (locked) {
                             return (
                               <div
                                 key={item}
-                                className="checklist-panel-row locked-item"
+                                className={`checklist-panel-compras-row ${supplierRisk ? "supplier-risk" : ""}`}
                               >
-                                <span className={`status-icon ${iconClass}`} />
-                                <span style={{ flex: 1 }}>
-                                  {CHECKLIST_LABELS[item]}
-                                  {deps?.length > 0 && (
-                                    <span className="dep-hint">
-                                      {" "}
-                                      — aguarda: {deps.map((d) => CHECKLIST_LABELS[d]).join(", ")}
-                                    </span>
-                                  )}
-                                </span>
+                                {stageName === "Compras" && (
+                                  <label
+                                    className={`supplier-date-field supplier-date-field--panel ${supplierRisk ? "supplier-date-field--risk" : ""}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <span className="supplier-date-label">Fornecedor</span>
+                                    <input
+                                      type="date"
+                                      className="supplier-date-input"
+                                      value={supplierDate}
+                                      disabled={!canEditSupplierDeadline(item)}
+                                      onChange={(e) =>
+                                        updateSupplierDeadline(
+                                          selectedProject.id,
+                                          item,
+                                          e.target.value
+                                        )
+                                      }
+                                    />
+                                  </label>
+                                )}
+                                <div className="checklist-panel-row locked-item">
+                                  <span className={`status-icon ${iconClass}`} />
+                                  <span style={{ flex: 1 }}>
+                                    {CHECKLIST_LABELS[item]}
+                                    {deps?.length > 0 && (
+                                      <span className="dep-hint">
+                                        {" "}
+                                        — aguarda: {deps.map((d) => CHECKLIST_LABELS[d]).join(", ")}
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
                               </div>
                             );
                           }
@@ -1631,8 +1670,32 @@ function App() {
                           const editable = canEditActivity(item);
 
                           return (
-                            <button
+                            <div
                               key={item}
+                              className={`checklist-panel-compras-row ${supplierRisk ? "supplier-risk" : ""}`}
+                            >
+                              {stageName === "Compras" && (
+                                <label
+                                  className={`supplier-date-field supplier-date-field--panel ${supplierRisk ? "supplier-date-field--risk" : ""}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <span className="supplier-date-label">Fornecedor</span>
+                                  <input
+                                    type="date"
+                                    className="supplier-date-input"
+                                    value={supplierDate}
+                                    disabled={!canEditSupplierDeadline(item)}
+                                    onChange={(e) =>
+                                      updateSupplierDeadline(
+                                        selectedProject.id,
+                                        item,
+                                        e.target.value
+                                      )
+                                    }
+                                  />
+                                </label>
+                              )}
+                            <button
                               type="button"
                               disabled={!editable}
                               className={`checklist-panel-row ${late ? "late-item" : ""} ${!editable ? "read-only" : ""}`}
@@ -1670,6 +1733,7 @@ function App() {
                                 </span>
                               )}
                             </button>
+                            </div>
                           );
                         })}
                       </div>
@@ -3071,7 +3135,7 @@ function KanbanProjectCard({
     : allItems;
   const progressPct = getSectorProgress(project, stage);
   const sectorLate = !completedView && sectorHasLateItem(project, stage);
-  const showSupplierFields = stage === "Compras" && !completedView;
+  const showSupplierFields = stage === "Compras";
 
   return (
     <div
@@ -3096,9 +3160,14 @@ function KanbanProjectCard({
       <div className="card-progress">
         <div className="card-progress-fill" style={{ width: `${progressPct}%` }} />
       </div>
+      {showSupplierFields && !completedView && (
+        <p className="card-supplier-hint">
+          Prazo do fornecedor: use o campo à esquerda de cada item (setor Compras edita).
+        </p>
+      )}
       {items.length > 0 && (
         <div
-          className={`checklist-dots ${completedView ? "completed-view" : ""}`}
+          className={`checklist-dots ${completedView ? "completed-view" : ""} ${showSupplierFields ? "checklist-dots--compras" : ""}`}
           onClick={(e) => e.stopPropagation()}
         >
           {completedView && (
@@ -3149,7 +3218,7 @@ function KanbanProjectCard({
                 onClick={(e) => e.stopPropagation()}
                 title="Prazo prometido pelo fornecedor (somente Compras)"
               >
-                <span className="supplier-date-label">Forn.</span>
+                <span className="supplier-date-label">Fornecedor</span>
                 <input
                   type="date"
                   className="supplier-date-input"
@@ -3158,6 +3227,7 @@ function KanbanProjectCard({
                   onChange={(e) =>
                     onSupplierDeadlineChange?.(item, e.target.value)
                   }
+                  onClick={(e) => e.stopPropagation()}
                 />
               </label>
             ) : null;
