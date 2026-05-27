@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { api } from "../api/client";
-import { ChangePasswordForm } from "../components/ChangePasswordForm";
 
 const SECTORS = ["Design", "Processos", "Desenvolvimento", "PCP", "Compras"];
 
@@ -231,10 +230,6 @@ export function UsuariosView({ currentUserId }) {
         </form>
       </div>
 
-      <div className="admin-card">
-        <h3>Minha senha</h3>
-        <ChangePasswordForm />
-      </div>
     </div>
   );
 }

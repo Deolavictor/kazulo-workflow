@@ -19,7 +19,7 @@ export function ChangePasswordForm({ compact = false }) {
     try {
       await api.changePassword(form.currentPassword, form.newPassword);
       setForm({ currentPassword: "", newPassword: "", confirm: "" });
-      setMsg("Senha alterada.");
+      setMsg("Senha alterada com sucesso. Use a nova senha no próximo login.");
     } catch (err) {
       setMsg(err.message || "Falha ao alterar senha");
     }
@@ -57,7 +57,11 @@ export function ChangePasswordForm({ compact = false }) {
       <button type="submit" className={compact ? "btn-secondary btn-sm" : "btn-primary"}>
         Alterar senha
       </button>
-      {msg && <p className="admin-hint">{msg}</p>}
+      {msg && (
+        <p className={`admin-hint ${msg.includes("sucesso") ? "form-msg-success" : "form-msg-error"}`}>
+          {msg}
+        </p>
+      )}
     </form>
   );
 }

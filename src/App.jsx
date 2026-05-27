@@ -5,9 +5,9 @@ import { buildReportFilename, exportElementToPdf } from "./utils/exportReportPdf
 import { UsuariosView } from "./views/UsuariosView";
 import { ConfiguracoesView } from "./views/ConfiguracoesView";
 import { HistoricoView } from "./views/HistoricoView";
-import { ChangePasswordForm } from "./components/ChangePasswordForm";
 import { NotificationsPanel } from "./components/NotificationsPanel";
 import { ChatView } from "./views/ChatView";
+import { MinhaContaView } from "./views/MinhaContaView";
 
 // LEAD TIMES: dias antes do início de produção
 const itemLeadTimes = {
@@ -95,6 +95,7 @@ const MENU_ITEMS = [
   { id: "Relatorios", icon: "📊" },
   { id: "Historico", icon: "🕐", adminOnly: false },
   { id: "Chat", icon: "💬", adminOnly: false },
+  { id: "MinhaConta", icon: "🔑", adminOnly: false },
   { id: "Usuarios", icon: "👥", adminOnly: true },
   { id: "Configuracoes", icon: "⚙", adminOnly: true }
 ];
@@ -109,6 +110,7 @@ const MENU_LABELS = {
   Relatorios: "Relatórios",
   Historico: "Histórico",
   Chat: "Chat",
+  MinhaConta: "Minha conta",
   Usuarios: "Usuários",
   Configuracoes: "Configurações"
 };
@@ -1075,7 +1077,9 @@ function App() {
                         ? "Histórico"
                         : item.id === "Chat"
                           ? "Chat"
-                          : item.id === "Usuarios"
+                          : item.id === "MinhaConta"
+                            ? "Minha conta"
+                            : item.id === "Usuarios"
                           ? "Usuários"
                           : item.id === "Configuracoes"
                             ? "Configurações"
@@ -1084,12 +1088,6 @@ function App() {
             ))}
           </nav>
         </div>
-        {!isAdmin && (
-          <details className="sidebar-password">
-            <summary>Alterar senha</summary>
-            <ChangePasswordForm compact />
-          </details>
-        )}
         <button type="button" className="sidebar-logout" onClick={logout} title="Encerrar sessão">
           <span className="logout-icon" aria-hidden>⎋</span>
           Sair / Logout
@@ -1275,6 +1273,8 @@ function App() {
               onRead={loadNotifications}
               onMessagesLoaded={loadNotifications}
             />
+          ) : activeMenu === "MinhaConta" ? (
+            <MinhaContaView user={user} />
           ) : activeMenu === "Usuarios" && isAdmin ? (
             <UsuariosView currentUserId={user?.id} />
           ) : activeMenu === "Configuracoes" && isAdmin ? (
