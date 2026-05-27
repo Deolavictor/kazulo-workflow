@@ -166,6 +166,8 @@ const ACTIVITY_DEPENDENCIES = {
 
 const KANBAN_STAGES = ["Design", "Processos", "Desenvolvimento", "PCP", "Compras"];
 
+const COMPRAS_ITEM_KEYS = Object.keys(SECTOR_CHECKLISTS.Compras || {});
+
 const SECTOR_CHECKLISTS = {
   Design: {
     projeto: false,
@@ -300,6 +302,7 @@ function getActivityStatus(project, itemKey) {
   if (!isActivityLiberated(project, itemKey)) return "locked";
   if (isActivityDone(project, itemKey)) return "done";
   if (isActivityInProgress(project, itemKey)) return "progress";
+  if (isSupplierDeadlineBlockingProduction(project, itemKey)) return "late";
   const due = project.checklistDates?.[itemKey];
   if (isItemLate(due)) return "late";
   return "liberated";
@@ -336,8 +339,37 @@ function getSectorProgress(project, stage) {
   return Math.round((done / items.length) * 100);
 }
 
+function getProductionStartDate(project) {
+  return (
+    project.productionStartDate ||
+    subtractDays(project.deliveryDate, PRODUCTION_LEAD)
+  );
+}
+
+function isSupplierDeadlineBlockingProduction(project, itemKey) {
+  if (!COMPRAS_ITEM_KEYS.includes(itemKey)) return false;
+  if (isActivityDone(project, itemKey)) return false;
+  const supplier = project.supplierDeadlines?.[itemKey];
+  if (!supplier) return false;
+  const sup = new Date(supplier);
+  const prod = new Date(getProductionStartDate(project));
+  sup.setHours(0, 0, 0, 0);
+  prod.setHours(0, 0, 0, 0);
+  return sup > prod;
+}
+
+function getSupplierProductionGapDays(project, itemKey) {
+  if (!isSupplierDeadlineBlockingProduction(project, itemKey)) return 0;
+  const sup = new Date(project.supplierDeadlines[itemKey]);
+  const prod = new Date(getProductionStartDate(project));
+  sup.setHours(0, 0, 0, 0);
+  prod.setHours(0, 0, 0, 0);
+  return Math.ceil((sup - prod) / (1000 * 60 * 60 * 24));
+}
+
 function isActivityOverdue(project, itemKey) {
   if (isActivityDone(project, itemKey)) return false;
+  if (isSupplierDeadlineBlockingProduction(project, itemKey)) return true;
   const due = project.checklistDates?.[itemKey];
   return isItemLate(due);
 }
@@ -567,6 +599,7 @@ function migrateProject(project) {
     activities,
     checklistDates,
     productionStartDate,
+    supplierDeadlines: { ...(project.supplierDeadlines || {}) },
     completed: project.completed ?? isProjectFullyComplete({ ...project, activities }),
     stage: undefined
   };
@@ -616,6 +649,15 @@ function App() {
       if (!user) return false;
       if (user.role === "admin") return true;
       return ACTIVITY_SECTOR[itemKey] === user.sector;
+    },
+    [user]
+  );
+
+  const canEditSupplierDeadline = useCallback(
+    (itemKey) => {
+      if (!user) return false;
+      if (user.role === "admin") return true;
+      return user.sector === "Compras" && COMPRAS_ITEM_KEYS.includes(itemKey);
     },
     [user]
   );
@@ -785,7 +827,8 @@ function App() {
         observations: "",
         activities: buildEmptyActivities(),
         checklistDates,
-        history: []
+        history: [],
+        supplierDeadlines: {}
       },
       { message: "Projeto criado", type: "create" }
     );
@@ -869,6 +912,45 @@ function App() {
       await saveProject(changed);
     } catch (err) {
       alert(err.message || "Erro ao salvar");
+      loadProjects();
+    }
+  }
+
+  async function updateSupplierDeadline(projectId, itemKey, dateStr) {
+    if (!canEditSupplierDeadline(itemKey)) {
+      alert("Somente o setor Compras pode informar prazo do fornecedor.");
+      return;
+    }
+    const target = projects.find((p) => p.id === projectId);
+    if (!target) return;
+
+    const supplierDeadlines = { ...(target.supplierDeadlines || {}) };
+    if (dateStr) supplierDeadlines[itemKey] = dateStr;
+    else delete supplierDeadlines[itemKey];
+
+    const blocks = dateStr && isSupplierDeadlineBlockingProduction(
+      { ...target, supplierDeadlines },
+      itemKey
+    );
+    const gap = blocks ? getSupplierProductionGapDays({ ...target, supplierDeadlines }, itemKey) : 0;
+
+    let message = dateStr
+      ? `Prazo fornecedor — ${CHECKLIST_LABELS[itemKey]}: ${formatDate(dateStr)}`
+      : `Prazo fornecedor removido — ${CHECKLIST_LABELS[itemKey]}`;
+
+    if (blocks) {
+      message += ` — impacta início de produção (+${gap} dia(s) após ${formatDate(getProductionStartDate(target))})`;
+    }
+
+    const next = pushHistory(
+      { ...target, supplierDeadlines },
+      { type: blocks ? "advance" : "edit", message }
+    );
+
+    try {
+      await saveProject(next);
+    } catch (err) {
+      alert(err.message || "Erro ao salvar prazo do fornecedor");
       loadProjects();
     }
   }
@@ -1409,8 +1491,12 @@ function App() {
                             badge={getProjectBadge(project)}
                             onSelect={() => selectProject(project)}
                             canEditActivity={canEditActivity}
+                            canEditSupplierDeadline={canEditSupplierDeadline}
                             onToggleChecklist={(item) =>
                               updateChecklist(project.id, item)
+                            }
+                            onSupplierDeadlineChange={(item, date) =>
+                              updateSupplierDeadline(project.id, item, date)
                             }
                           />
                         ))
@@ -1759,13 +1845,28 @@ function getDaysLate(dueDateStr) {
   return Math.max(0, Math.ceil((today - due) / (1000 * 60 * 60 * 24)));
 }
 
+function buildComprasSupplierForecastBlockers(project) {
+  return COMPRAS_ITEM_KEYS.map((key) => {
+    if (!isSupplierDeadlineBlockingProduction(project, key)) return null;
+    return {
+      key,
+      label: CHECKLIST_LABELS[key],
+      sector: "Compras",
+      dueDate: project.supplierDeadlines[key],
+      supplierDeadline: true,
+      daysLate: getSupplierProductionGapDays(project, key),
+      productionStart: getProductionStartDate(project)
+    };
+  }).filter(Boolean);
+}
+
 function buildProductionForecasts(projects, sectorFilter) {
   const forecasts = [];
 
   projects.forEach((project) => {
     if (project.completed || isProjectFullyComplete(project)) return;
 
-    const blockers = PRODUCTION_GATE_KEYS.map((key) => {
+    const gateBlockers = PRODUCTION_GATE_KEYS.map((key) => {
       if (isActivityDone(project, key)) return null;
       const due = project.checklistDates?.[key];
       if (!due || !isItemLate(due)) return null;
@@ -1774,9 +1875,13 @@ function buildProductionForecasts(projects, sectorFilter) {
         label: CHECKLIST_LABELS[key],
         sector: ACTIVITY_SECTOR[key],
         dueDate: due,
-        daysLate: getDaysLate(due)
+        daysLate: getDaysLate(due),
+        supplierDeadline: false
       };
     }).filter(Boolean);
+
+    const supplierBlockers = buildComprasSupplierForecastBlockers(project);
+    const blockers = [...gateBlockers, ...supplierBlockers];
 
     if (blockers.length === 0) return;
 
@@ -2355,7 +2460,7 @@ function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
           <h2>Previsões</h2>
           <p>
             {isAdmin
-              ? "Projetos com risco de atrasar o início de produção por atividade crítica vencida"
+              ? "Risco no início de produção: itens críticos vencidos ou prazo do fornecedor (Compras) após a data prevista"
               : `Alertas do setor ${userSector} que podem impactar o início de produção`}
           </p>
         </div>
@@ -2385,10 +2490,15 @@ function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
       </div>
 
       <div className="forecasts-gate-legend">
-        <span className="forecasts-gate-title">Itens exigidos para iniciar produção:</span>
+        <span className="forecasts-gate-title">Itens críticos + Compras (prazo fornecedor):</span>
         {PRODUCTION_GATE_KEYS.map((key) => (
           <span key={key} className="forecasts-gate-chip">
             {CHECKLIST_LABELS[key]}
+          </span>
+        ))}
+        {COMPRAS_ITEM_KEYS.map((key) => (
+          <span key={`c-${key}`} className="forecasts-gate-chip forecasts-gate-chip--compras">
+            {CHECKLIST_LABELS[key]} (forn.)
           </span>
         ))}
       </div>
@@ -2454,8 +2564,20 @@ function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
                       <div className="forecast-blocker-detail">
                         <span className="forecast-blocker-activity">{b.label}</span>
                         <span className="forecast-blocker-meta">
-                          Prazo {formatDate(b.dueDate)} ·{" "}
-                          <strong className="late">{b.daysLate} dia(s) de atraso</strong>
+                          {b.supplierDeadline ? (
+                            <>
+                              Fornecedor {formatDate(b.dueDate)} · início produção{" "}
+                              {formatDate(b.productionStart)} ·{" "}
+                              <strong className="late">
+                                {b.daysLate} dia(s) depois do início
+                              </strong>
+                            </>
+                          ) : (
+                            <>
+                              Prazo {formatDate(b.dueDate)} ·{" "}
+                              <strong className="late">{b.daysLate} dia(s) de atraso</strong>
+                            </>
+                          )}
                         </span>
                       </div>
                     </li>
@@ -2939,6 +3061,8 @@ function KanbanProjectCard({
   onSelect,
   onToggleChecklist,
   canEditActivity,
+  canEditSupplierDeadline,
+  onSupplierDeadlineChange,
   completedView = false
 }) {
   const allItems = getSectorItems(stage);
@@ -2947,6 +3071,7 @@ function KanbanProjectCard({
     : allItems;
   const progressPct = getSectorProgress(project, stage);
   const sectorLate = !completedView && sectorHasLateItem(project, stage);
+  const showSupplierFields = stage === "Compras" && !completedView;
 
   return (
     <div
@@ -2985,10 +3110,13 @@ function KanbanProjectCard({
             const status = getActivityStatus(project, item);
             const locked = !completedView && status === "locked";
             const done = status === "done";
+            const supplierRisk =
+              showSupplierFields && isSupplierDeadlineBlockingProduction(project, item);
             const overdue = isActivityOverdue(project, item);
-            const late = status === "late" || overdue;
+            const late = status === "late" || overdue || supplierRisk;
             const inProgress = status === "progress";
             const dueDate = project.checklistDates?.[item];
+            const supplierDate = project.supplierDeadlines?.[item] || "";
             const iconClass = done
               ? "done"
               : locked
@@ -3015,16 +3143,40 @@ function KanbanProjectCard({
               </span>
             ) : null;
 
+            const supplierField = showSupplierFields ? (
+              <label
+                className={`supplier-date-field ${supplierRisk ? "supplier-date-field--risk" : ""}`}
+                onClick={(e) => e.stopPropagation()}
+                title="Prazo prometido pelo fornecedor (somente Compras)"
+              >
+                <span className="supplier-date-label">Forn.</span>
+                <input
+                  type="date"
+                  className="supplier-date-input"
+                  value={supplierDate}
+                  disabled={!canEditSupplierDeadline?.(item)}
+                  onChange={(e) =>
+                    onSupplierDeadlineChange?.(item, e.target.value)
+                  }
+                />
+              </label>
+            ) : null;
+
             if (locked) {
               return (
                 <div
                   key={item}
-                  className="checklist-dot-row locked"
-                  aria-label={`${CHECKLIST_LABELS[item]} — bloqueado${dueDate ? `, prazo ${formatDate(dueDate)}` : ""}`}
+                  className={`checklist-compras-row ${supplierRisk ? "supplier-risk" : ""}`}
                 >
-                  <span className={`status-icon ${iconClass}`} />
-                  <span className="item-label locked">{CHECKLIST_LABELS[item]}</span>
-                  {dueDateEl}
+                  {supplierField}
+                  <div
+                    className="checklist-dot-row locked"
+                    aria-label={`${CHECKLIST_LABELS[item]} — bloqueado${dueDate ? `, prazo ${formatDate(dueDate)}` : ""}`}
+                  >
+                    <span className={`status-icon ${iconClass}`} />
+                    <span className="item-label locked">{CHECKLIST_LABELS[item]}</span>
+                    {dueDateEl}
+                  </div>
                 </div>
               );
             }
@@ -3032,8 +3184,12 @@ function KanbanProjectCard({
             const editable = canEditActivity(item);
 
             return (
-              <button
+              <div
                 key={item}
+                className={`checklist-compras-row ${supplierRisk ? "supplier-risk" : ""}`}
+              >
+                {supplierField}
+              <button
                 type="button"
                 disabled={!editable}
                 className={`checklist-dot-row ${!editable ? "read-only" : ""}`}
@@ -3056,6 +3212,7 @@ function KanbanProjectCard({
                 </span>
                 {dueDateEl}
               </button>
+              </div>
             );
           })}
         </div>

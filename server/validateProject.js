@@ -1,4 +1,5 @@
 import { ACTIVITY_SECTOR, canUserEditProjectMeta } from "./workflowRules.js";
+import { COMPRAS_ITEM_KEYS } from "./workflowCompras.js";
 
 const META_KEYS = [
   "name",
@@ -54,6 +55,22 @@ export function validateProjectUpdate(user, oldProject, newProject) {
         ok: false,
         error: `Sem permissão para alterar "${key}" (setor ${ACTIVITY_SECTOR[key]})`
       };
+    }
+  }
+
+  const oldSup = oldProject.supplierDeadlines || {};
+  const newSup = newProject.supplierDeadlines || {};
+  if (JSON.stringify(oldSup) !== JSON.stringify(newSup)) {
+    if (user.role !== "admin" && user.sector !== "Compras") {
+      return {
+        ok: false,
+        error: "Somente o setor Compras pode alterar prazo do fornecedor"
+      };
+    }
+    for (const key of Object.keys(newSup)) {
+      if (!COMPRAS_ITEM_KEYS.includes(key)) {
+        return { ok: false, error: `Prazo de fornecedor inválido: ${key}` };
+      }
     }
   }
 

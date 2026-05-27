@@ -11,6 +11,10 @@ import {
   isActivityDone,
   isProjectFullyComplete
 } from "./workflowCalculations.js";
+import {
+  buildComprasSupplierBlockers,
+  getProductionStartDate
+} from "./workflowCompras.js";
 
 function todayAtMidnight() {
   const today = new Date();
@@ -70,6 +74,24 @@ export function buildUserNotifications(projects, user) {
   }
 
   for (const project of active) {
+    for (const b of buildComprasSupplierBlockers(project)) {
+      items.push({
+        id: notificationId(["supplier", project.id, b.key]),
+        type: "production_blocker",
+        priority: "high",
+        projectId: project.id,
+        projectName: project.name,
+        client: project.client || "",
+        sector: "Compras",
+        itemKey: b.key,
+        label: b.label,
+        daysLate: b.daysLate,
+        message: `Fornecedor (${b.label}): entrega ${formatDateBr(b.dueDate)} após início produção ${formatDateBr(getProductionStartDate(project))}`,
+        at: new Date().toISOString(),
+        href: { menu: "Previsoes", projectId: project.id }
+      });
+    }
+
     for (const key of PRODUCTION_GATE_KEYS) {
       if (isActivityDone(project, key)) continue;
       const due = project.checklistDates?.[key];
