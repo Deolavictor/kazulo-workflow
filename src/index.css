@@ -1116,7 +1116,7 @@ body,
   padding: 14px 12px;
 }
 
-.checklist-compras-row {
+.checklist-dots--compras .checklist-compras-row {
   display: grid;
   grid-template-columns: 128px minmax(0, 1fr);
   align-items: center;
@@ -1124,7 +1124,7 @@ body,
   width: 100%;
 }
 
-.checklist-compras-row.supplier-risk {
+.checklist-dots--compras .checklist-compras-row.supplier-risk {
   background: rgba(254, 226, 226, 0.45);
   border-radius: 10px;
   padding: 4px 6px;
@@ -1240,7 +1240,7 @@ body,
   cursor: not-allowed;
 }
 
-.checklist-compras-row .checklist-dot-row {
+.checklist-dots--compras .checklist-compras-row .checklist-dot-row {
   flex: 1;
   min-width: 0;
   width: 100%;
@@ -1250,7 +1250,7 @@ body,
   background: rgba(255, 255, 255, 0.7);
 }
 
-.checklist-compras-row .checklist-dot-row .item-label {
+.checklist-dots--compras .checklist-compras-row .checklist-dot-row .item-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

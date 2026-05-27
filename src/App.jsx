@@ -3233,33 +3233,41 @@ function KanbanProjectCard({
               </label>
             ) : null;
 
+            const comprasRowClass = supplierRisk
+              ? "checklist-compras-row supplier-risk"
+              : "checklist-compras-row";
+
             if (locked) {
-              return (
+              const lockedRow = (
                 <div
-                  key={item}
-                  className={`checklist-compras-row ${supplierRisk ? "supplier-risk" : ""}`}
+                  className="checklist-dot-row locked"
+                  aria-label={`${CHECKLIST_LABELS[item]} — bloqueado${dueDate ? `, prazo ${formatDate(dueDate)}` : ""}`}
                 >
-                  {supplierField}
-                  <div
-                    className="checklist-dot-row locked"
-                    aria-label={`${CHECKLIST_LABELS[item]} — bloqueado${dueDate ? `, prazo ${formatDate(dueDate)}` : ""}`}
-                  >
-                    <span className={`status-icon ${iconClass}`} />
-                    <span className="item-label locked">{CHECKLIST_LABELS[item]}</span>
-                    {dueDateEl}
+                  <span className={`status-icon ${iconClass}`} />
+                  <span className="item-label locked">{CHECKLIST_LABELS[item]}</span>
+                  {dueDateEl}
+                </div>
+              );
+
+              if (showSupplierFields) {
+                return (
+                  <div key={item} className={comprasRowClass}>
+                    {supplierField}
+                    {lockedRow}
                   </div>
+                );
+              }
+
+              return (
+                <div key={item}>
+                  {lockedRow}
                 </div>
               );
             }
 
             const editable = canEditActivity(item);
 
-            return (
-              <div
-                key={item}
-                className={`checklist-compras-row ${supplierRisk ? "supplier-risk" : ""}`}
-              >
-                {supplierField}
+            const activityRow = (
               <button
                 type="button"
                 disabled={!editable}
@@ -3283,8 +3291,18 @@ function KanbanProjectCard({
                 </span>
                 {dueDateEl}
               </button>
-              </div>
             );
+
+            if (showSupplierFields) {
+              return (
+                <div key={item} className={comprasRowClass}>
+                  {supplierField}
+                  {activityRow}
+                </div>
+              );
+            }
+
+            return <div key={item}>{activityRow}</div>;
           })}
         </div>
       )}
