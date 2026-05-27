@@ -1197,7 +1197,9 @@ function App() {
         </button>
       </aside>
 
-      <div className="main-wrap">
+      <div
+        className={`main-wrap ${activeMenu === "Projetos" ? "main-wrap--projetos" : ""}`}
+      >
 
 
         <div className="top-bar">
@@ -1321,7 +1323,9 @@ function App() {
           </div>
         </div>
 
-        <div className={`workspace ${selectedProject ? "has-detail" : ""}`}>
+        <div
+          className={`workspace ${selectedProject ? "has-detail" : ""} ${activeMenu === "Projetos" ? "workspace--projetos" : ""}`}
+        >
           {syncError && (
             <div className="sync-error-banner">{syncError}</div>
           )}
@@ -1386,7 +1390,7 @@ function App() {
             <div className="board-loading">Acesso restrito ao administrador.</div>
           ) : (
           <>
-          <div className="board-area">
+          <div className="board-area board-area--kanban">
             <div className="fluxo-header">
               <div>
                 <h2>Fluxo de Produção</h2>
