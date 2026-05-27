@@ -972,8 +972,17 @@ body,
 }
 
 .kanban-column--compras {
-  min-width: 400px;
-  max-width: 420px;
+  min-width: 480px;
+  max-width: 500px;
+  width: 480px;
+  flex: 0 0 480px;
+}
+
+.kanban-board--filtered .kanban-column--compras {
+  min-width: 480px;
+  max-width: 640px;
+  width: 100%;
+  flex: 1 1 480px;
 }
 
 .kanban-compras-supplier-note {
@@ -1113,14 +1122,23 @@ body,
 }
 
 .project-card--compras {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 14px 12px;
+}
+
+.checklist-dots--compras {
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
 }
 
 .checklist-dots--compras .checklist-compras-row {
   display: grid;
-  grid-template-columns: 128px minmax(0, 1fr);
+  grid-template-columns: 150px minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
 }
 
@@ -1132,8 +1150,8 @@ body,
 
 .compras-card-row-head {
   display: grid;
-  grid-template-columns: 128px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 12px;
   padding: 0 2px 6px;
   margin-bottom: 2px;
   border-bottom: 1px solid #e9d5ff;
@@ -1142,11 +1160,6 @@ body,
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #7e22ce;
-}
-
-.checklist-dots--compras {
-  gap: 10px;
-  width: 100%;
 }
 
 .supplier-date-field {
@@ -1166,7 +1179,7 @@ body,
 .supplier-date-field--card {
   width: 100%;
   min-width: 0;
-  max-width: 128px;
+  max-width: none;
   padding: 4px 6px;
   order: -1;
 }
@@ -3979,8 +3992,16 @@ body,
   }
 
   .kanban-column--compras {
-    min-width: min(94vw, 400px);
+    min-width: min(96vw, 480px);
     max-width: none;
+    width: min(96vw, 480px);
+    flex: 0 0 min(96vw, 480px);
+  }
+
+  .kanban-board--filtered .kanban-column--compras {
+    width: 100%;
+    flex: 1 1 auto;
+    min-width: 100%;
   }
 
   .kanban-board--filtered .kanban-column {
