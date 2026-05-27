@@ -1230,27 +1230,14 @@ body,
   color: #b91c1c;
 }
 
-.supplier-date-input {
-  width: 100%;
-  min-width: 0;
-  font-size: 12px;
-  padding: 6px 4px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  background: #fff;
-  font-family: inherit;
-  color: var(--text);
-  box-sizing: border-box;
-}
-
-.supplier-date-field--card .supplier-date-input {
-  font-size: 13px;
-  padding: 7px 4px;
-}
-
-.supplier-date-input:disabled {
+.supplier-date-field .date-field-input:disabled,
+.date-field-input:disabled {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+.supplier-date-field .date-field-calendar-btn:disabled {
+  display: none;
 }
 
 .checklist-dots--compras .checklist-compras-row .checklist-dot-row {
@@ -1729,6 +1716,102 @@ body,
   background: #f8fafc;
   font-size: 14px;
   font-family: inherit;
+}
+
+.date-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  position: relative;
+}
+
+.date-field-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.date-field--compact {
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+.date-field--compact .date-field-input {
+  padding: 7px 8px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
+.date-field--invalid .date-field-input {
+  border-color: #f87171;
+  background: #fef2f2;
+}
+
+.date-field-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.date-field-calendar-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+
+.date-field-calendar-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.date-field--compact .date-field-calendar-btn {
+  width: 34px;
+  height: 34px;
+  font-size: 14px;
+  border-radius: 8px;
+}
+
+.date-field-error {
+  width: 100%;
+  font-size: 11px;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.form-field .date-field-input {
+  width: auto;
+  flex: 1;
+}
+
+.supplier-date-field .date-field {
+  width: 100%;
+}
+
+.supplier-date-field .date-field-input {
+  background: #fff;
 }
 
 .btn-primary {

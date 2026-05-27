@@ -8,6 +8,7 @@ import { HistoricoView } from "./views/HistoricoView";
 import { NotificationsPanel } from "./components/NotificationsPanel";
 import { ChatView } from "./views/ChatView";
 import { MinhaContaView } from "./views/MinhaContaView";
+import { DateField } from "./components/DateField";
 
 // LEAD TIMES: dias antes do início de produção
 const itemLeadTimes = {
@@ -1097,11 +1098,12 @@ function App() {
           />
         </div>
         <div className="form-field">
-          <label>Data de Entrega</label>
-          <input
-            type="date"
+          <label htmlFor="new-project-delivery">Data de Entrega</label>
+          <DateField
+            id="new-project-delivery"
             value={deliveryDate}
-            onChange={(e) => setDeliveryDate(e.target.value)}
+            onChange={setDeliveryDate}
+            aria-label="Data de entrega do projeto"
           />
         </div>
         <div className="form-field">
@@ -1657,18 +1659,18 @@ function App() {
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     <span className="supplier-date-label">Fornecedor</span>
-                                    <input
-                                      type="date"
-                                      className="supplier-date-input"
+                                    <DateField
+                                      compact
                                       value={supplierDate}
                                       disabled={!canEditSupplierDeadline(item)}
-                                      onChange={(e) =>
+                                      onChange={(iso) =>
                                         updateSupplierDeadline(
                                           selectedProject.id,
                                           item,
-                                          e.target.value
+                                          iso
                                         )
                                       }
+                                      aria-label={`Prazo fornecedor — ${CHECKLIST_LABELS[item]}`}
                                     />
                                   </label>
                                 )}
@@ -1701,18 +1703,18 @@ function App() {
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <span className="supplier-date-label">Fornecedor</span>
-                                  <input
-                                    type="date"
-                                    className="supplier-date-input"
+                                  <DateField
+                                    compact
                                     value={supplierDate}
                                     disabled={!canEditSupplierDeadline(item)}
-                                    onChange={(e) =>
+                                    onChange={(iso) =>
                                       updateSupplierDeadline(
                                         selectedProject.id,
                                         item,
-                                        e.target.value
+                                        iso
                                       )
                                     }
+                                    aria-label={`Prazo fornecedor — ${CHECKLIST_LABELS[item]}`}
                                   />
                                 </label>
                               )}
@@ -1775,12 +1777,13 @@ function App() {
                 {detailTab === "detalhes" && (
                   <>
                     <div className="form-field" style={{ marginBottom: 12 }}>
-                      <label>Data de Entrega</label>
-                      <input
-                        type="date"
+                      <label htmlFor="detail-delivery-date">Data de Entrega</label>
+                      <DateField
+                        id="detail-delivery-date"
                         value={selectedProject.deliveryDate}
                         disabled={!isAdmin}
-                        onChange={(e) => updateDeliveryDate(selectedProject.id, e.target.value)}
+                        onChange={(iso) => updateDeliveryDate(selectedProject.id, iso)}
+                        aria-label="Data de entrega do projeto"
                       />
                     </div>
                     <p style={{ fontSize: 13, color: "#64748b", marginBottom: 8 }}>
@@ -3295,17 +3298,15 @@ function KanbanProjectCard({
                 onClick={(e) => e.stopPropagation()}
                 title="Prazo prometido pelo fornecedor (somente Compras)"
               >
-                <input
-                  type="date"
-                  className="supplier-date-input"
-                  value={supplierDate}
-                  disabled={!canEditSupplierDeadline?.(item)}
-                  onChange={(e) =>
-                    onSupplierDeadlineChange?.(item, e.target.value)
-                  }
-                  onClick={(e) => e.stopPropagation()}
-                  aria-label={`Prazo fornecedor — ${CHECKLIST_LABELS[item]}`}
-                />
+                <div onClick={(e) => e.stopPropagation()}>
+                  <DateField
+                    compact
+                    value={supplierDate}
+                    disabled={!canEditSupplierDeadline?.(item)}
+                    onChange={(iso) => onSupplierDeadlineChange?.(item, iso)}
+                    aria-label={`Prazo fornecedor — ${CHECKLIST_LABELS[item]}`}
+                  />
+                </div>
               </label>
             ) : null;
 
