@@ -21,7 +21,7 @@ npm run build
 npm start
 ```
 
-Variáveis importantes: `JWT_SECRET`, `BREVO_API_KEY`, `DAILY_REPORT_TO`, `DB_PATH` (volume `/data` recomendado).
+Variáveis importantes: `JWT_SECRET`, `BREVO_API_KEY`, `DAILY_REPORT_TO`, `DB_PATH` (volume `/data` **obrigatório** no Railway — ver `docs/RAILWAY-PERSISTENCIA-DADOS.md`).
 
 ## Etapas do produto
 

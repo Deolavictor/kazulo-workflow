@@ -1,4 +1,5 @@
 # Railway lê este arquivo automaticamente (opcional)
+# Dados: crie Volume Mount Path /data + DB_PATH=/data/kazulo.db (docs/RAILWAY-PERSISTENCIA-DADOS.md)
 [build]
 buildCommand = "npm install && npm run build"
 

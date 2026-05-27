@@ -136,6 +136,8 @@ export const api = {
       body: JSON.stringify({ channel, throughMessageId })
     }),
 
+  fetchPersistence: () => request("/admin/persistence"),
+
   fetchBackups: () => request("/admin/backups"),
 
   runBackup: () => request("/admin/backups/run", { method: "POST" }),

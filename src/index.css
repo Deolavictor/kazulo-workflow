@@ -3549,6 +3549,49 @@ body,
   font-weight: 400;
 }
 
+.persistence-banner {
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  border: 1px solid;
+}
+
+.persistence-banner h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.persistence-banner p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.persistence-banner--ok {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+  color: #065f46;
+}
+
+.persistence-banner--risk {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.persistence-steps {
+  margin: 0 0 10px;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.persistence-warnings {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+}
+
 .admin-hint--box {
   padding: 12px;
   background: #f8fafc;

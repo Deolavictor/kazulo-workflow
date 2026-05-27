@@ -43,6 +43,7 @@ import { restartDailyReportScheduler } from "./dailyScheduler.js";
 import { validateProjectUpdate } from "./validateProject.js";
 import { canUserEditProjectMeta } from "./workflowRules.js";
 import { startDailyReportScheduler } from "./dailyScheduler.js";
+import { getPersistenceStatus, logPersistenceOnStartup } from "./persistence.js";
 import {
   getDailyEmailConfigStatus,
   sendDailyOverdueEmail,
@@ -351,6 +352,10 @@ app.get("/api/admin/daily-report/welcome-preview", authMiddleware, requireAdmin,
   res.json({ html: buildWelcomeEmailHtml() });
 });
 
+app.get("/api/admin/persistence", authMiddleware, requireAdmin, (_req, res) => {
+  res.json(getPersistenceStatus());
+});
+
 app.get("/api/admin/backups", authMiddleware, requireAdmin, (_req, res) => {
   res.json({ backups: listBackups(), config: getBackupConfig() });
 });
@@ -387,6 +392,8 @@ if (process.env.NODE_ENV === "production") {
     res.sendFile(path.join(distPath, "index.html"));
   });
 }
+
+logPersistenceOnStartup();
 
 app.listen(PORT, () => {
   console.log(`[kazulo] API em http://localhost:${PORT}`);

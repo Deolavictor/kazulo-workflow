@@ -13,19 +13,22 @@ export function ConfiguracoesView() {
   const [backups, setBackups] = useState([]);
   const [backupConfig, setBackupConfig] = useState(null);
   const [backupRunning, setBackupRunning] = useState(false);
+  const [persistence, setPersistence] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [settingsRes, statusRes, backupsRes] = await Promise.all([
+      const [settingsRes, statusRes, backupsRes, persistenceRes] = await Promise.all([
         api.fetchSettings(),
         api.dailyReportStatus(),
-        api.fetchBackups()
+        api.fetchBackups(),
+        api.fetchPersistence()
       ]);
       setSettings(settingsRes.settings);
       setEmailStatus(statusRes);
       setBackups(backupsRes.backups || []);
       setBackupConfig(backupsRes.config || null);
+      setPersistence(persistenceRes);
     } catch (err) {
       alert(err.message || "Erro ao carregar configurações");
     } finally {
@@ -107,6 +110,47 @@ export function ConfiguracoesView() {
         <h2>Configurações</h2>
         <p>Relatório diário por e-mail e URL pública do sistema</p>
       </div>
+
+      {persistence && (
+        <div
+          className={`persistence-banner ${persistence.dataAtRisk ? "persistence-banner--risk" : "persistence-banner--ok"}`}
+        >
+          <h3>Persistência dos dados</h3>
+          {persistence.dataAtRisk ? (
+            <>
+              <p>
+                <strong>Atenção:</strong> o banco não está no volume do Railway. Cada deploy ou
+                crash pode apagar projetos e usuários. Isso explica perda de conteúdo após
+                atualizações do site.
+              </p>
+              <ol className="persistence-steps">
+                <li>
+                  Railway → serviço → <strong>Volumes</strong> → Add Volume → Mount Path{" "}
+                  <code>{persistence.recommended.volumeMountPath}</code>
+                </li>
+                <li>
+                  Variables: <code>DB_PATH={persistence.recommended.DB_PATH}</code> e{" "}
+                  <code>BACKUP_DIR={persistence.recommended.BACKUP_DIR}</code>
+                </li>
+                <li>Redeploy e confira se esta mensagem sumiu</li>
+              </ol>
+            </>
+          ) : (
+            <p>
+              <strong>Dados protegidos.</strong> Banco em{" "}
+              <code>{persistence.dbPath}</code> — {persistence.projectCount} projeto(s) no
+              servidor. Backups em <code>{persistence.backupDir}</code>.
+            </p>
+          )}
+          {persistence.warnings?.length > 0 && (
+            <ul className="persistence-warnings">
+              {persistence.warnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {emailStatus && (
         <div className={`admin-status-banner ${emailStatus.ready ? "ok" : "warn"}`}>

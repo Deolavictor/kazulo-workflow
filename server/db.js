@@ -295,6 +295,12 @@ export function getDbPath() {
   return dbPath;
 }
 
+export function getDbCounts() {
+  const projectCount = db.prepare("SELECT COUNT(*) AS c FROM projects").get().c;
+  const userCount = db.prepare("SELECT COUNT(*) AS c FROM users").get().c;
+  return { projectCount, userCount };
+}
+
 export function getReadNotificationIds(userId) {
   return db
     .prepare("SELECT notification_id FROM notification_reads WHERE user_id = ?")
