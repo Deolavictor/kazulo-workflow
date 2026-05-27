@@ -78,9 +78,19 @@ export function getPersistenceStatus() {
     latestBackup,
     lifecycle,
     recommended: {
-      DB_PATH: "/data/kazulo.db",
-      BACKUP_DIR: "/data/backups",
-      volumeMountPath: "/data"
+      DB_PATH: process.env.RAILWAY_VOLUME_MOUNT_PATH
+        ? `${process.env.RAILWAY_VOLUME_MOUNT_PATH}/kazulo.db`
+        : fs.existsSync("/var/data")
+          ? "/var/data/kazulo.db"
+          : "/data/kazulo.db",
+      BACKUP_DIR: process.env.RAILWAY_VOLUME_MOUNT_PATH
+        ? `${process.env.RAILWAY_VOLUME_MOUNT_PATH}/backups`
+        : fs.existsSync("/var/data")
+          ? "/var/data/backups"
+          : "/data/backups",
+      volumeMountPath:
+        process.env.RAILWAY_VOLUME_MOUNT_PATH ||
+        (fs.existsSync("/var/data") ? "/var/data" : "/data")
     }
   };
 }

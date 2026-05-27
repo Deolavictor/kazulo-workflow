@@ -15,16 +15,18 @@ Alterar o código no GitHub **não apaga** dados por si só. O que apaga é o ba
 1. Abra o projeto no [Railway](https://railway.app)
 2. Clique no **serviço** do workflow (não no projeto inteiro)
 3. Aba **Volumes** → **Add Volume**
-4. **Mount Path:** `/data`
+4. **Mount Path:** `/var/data` ou `/data` (use o mesmo path que aparece em **Settings** do volume)
 5. Salve
+
+No print do Railway template SQLite o path costuma ser **`/var/data`**.
 
 ### 2. Variáveis de ambiente
 
-No serviço → **Variables**:
+No serviço **kazulo-workflow** → **Variables** (ajuste o path ao mount do seu volume):
 
 ```env
-DB_PATH=/data/kazulo.db
-BACKUP_DIR=/data/backups
+DB_PATH=/var/data/kazulo.db
+BACKUP_DIR=/var/data/backups
 BACKUP_ENABLED=true
 BACKUP_ON_STARTUP=true
 BACKUP_ON_CHANGE=true

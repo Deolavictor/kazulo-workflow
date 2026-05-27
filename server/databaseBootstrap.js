@@ -83,22 +83,35 @@ export function maybeRestoreFromBackup(dbPath, backupDir) {
   return backup;
 }
 
-/** Garante DB_PATH no volume em produção Railway quando /data existe */
+function detectVolumeMountDir() {
+  const fromRailway = process.env.RAILWAY_VOLUME_MOUNT_PATH?.trim();
+  if (fromRailway && fs.existsSync(fromRailway)) return fromRailway;
+
+  for (const dir of ["/var/data", "/data"]) {
+    if (fs.existsSync(dir)) return dir;
+  }
+  return null;
+}
+
+/** Garante DB_PATH no volume em produção Railway (ex.: /var/data do template SQLite) */
 export function applyRailwayDbDefaults() {
   const onRailway = Boolean(
     process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID
   );
   if (!onRailway || process.env.NODE_ENV !== "production") return resolveDbPath();
 
-  if (!process.env.DB_PATH && fs.existsSync("/data")) {
-    process.env.DB_PATH = "/data/kazulo.db";
-    console.log("[db] DB_PATH ausente — usando /data/kazulo.db (volume Railway)");
+  const volumeDir = detectVolumeMountDir();
+  if (!process.env.DB_PATH && volumeDir) {
+    process.env.DB_PATH = path.join(volumeDir, "kazulo.db");
+    console.log(
+      `[db] DB_PATH ausente — usando ${process.env.DB_PATH} (volume Railway)`
+    );
   }
-  if (
-    process.env.DB_PATH?.startsWith("/data/") &&
-    !process.env.BACKUP_DIR
-  ) {
-    process.env.BACKUP_DIR = "/data/backups";
+  if (process.env.DB_PATH && !process.env.BACKUP_DIR) {
+    const normalized = process.env.DB_PATH.replace(/\\/g, "/");
+    if (normalized.startsWith("/var/data/") || normalized.startsWith("/data/")) {
+      process.env.BACKUP_DIR = path.join(path.dirname(process.env.DB_PATH), "backups");
+    }
   }
   return resolveDbPath();
 }
