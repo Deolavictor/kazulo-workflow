@@ -75,7 +75,7 @@ export function buildUserNotifications(projects, user) {
 
   for (const project of active) {
     for (const b of buildComprasSupplierBlockers(project)) {
-      items.push({
+      list.push({
         id: notificationId(["supplier", project.id, b.key]),
         type: "production_blocker",
         priority: "high",

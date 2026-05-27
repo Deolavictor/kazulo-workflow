@@ -166,8 +166,6 @@ const ACTIVITY_DEPENDENCIES = {
 
 const KANBAN_STAGES = ["Design", "Processos", "Desenvolvimento", "PCP", "Compras"];
 
-const COMPRAS_ITEM_KEYS = Object.keys(SECTOR_CHECKLISTS.Compras || {});
-
 const SECTOR_CHECKLISTS = {
   Design: {
     projeto: false,
@@ -200,6 +198,8 @@ const SECTOR_CHECKLISTS = {
     mpPsai: false
   }
 };
+
+const COMPRAS_ITEM_KEYS = Object.keys(SECTOR_CHECKLISTS.Compras || {});
 
 const CHECKLIST_LABELS = {
   projeto: "Projeto",
