@@ -19,8 +19,12 @@ function parseStoredValue(key, raw) {
 }
 
 export function getSetting(key) {
-  const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(key);
-  if (row) return parseStoredValue(key, row.value);
+  try {
+    const row = db.prepare("SELECT value FROM app_settings WHERE key = ?").get(key);
+    if (row) return parseStoredValue(key, row.value);
+  } catch (err) {
+    console.warn(`[settings] Falha ao ler "${key}":`, err.message);
+  }
   const def = ENV_DEFAULTS[key];
   return def ? def() : "";
 }

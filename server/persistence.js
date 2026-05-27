@@ -29,9 +29,14 @@ export function getPersistenceStatus() {
       "O banco NÃO está no volume do Railway. Cada deploy ou crash pode apagar projetos e usuários."
     );
   }
-  if (production && onRailway && !fs.existsSync("/data")) {
+  if (production && onRailway && !onPersistentVolume) {
+    const mountHint = fs.existsSync("/var/data")
+      ? "/var/data"
+      : fs.existsSync("/data")
+        ? "/data"
+        : "/var/data ou /data";
     warnings.push(
-      "Pasta /data não existe no servidor. Crie um Volume com Mount Path /data no Railway."
+      `Volume não detectado. Crie um Volume no Railway com Mount Path ${mountHint}.`
     );
   }
   if (
@@ -48,9 +53,12 @@ export function getPersistenceStatus() {
   }
 
   let volumeWritable = null;
-  if (onRailway && fs.existsSync("/data")) {
+  const volumeDir =
+    process.env.RAILWAY_VOLUME_MOUNT_PATH ||
+    (fs.existsSync("/var/data") ? "/var/data" : fs.existsSync("/data") ? "/data" : null);
+  if (onRailway && volumeDir) {
     try {
-      fs.accessSync("/data", fs.constants.W_OK);
+      fs.accessSync(volumeDir, fs.constants.W_OK);
       volumeWritable = true;
     } catch {
       volumeWritable = false;
@@ -60,7 +68,12 @@ export function getPersistenceStatus() {
   const backupDir =
     process.env.BACKUP_DIR || path.join(path.dirname(dbPath), "backups");
 
-  const latestBackup = getLatestBackupMeta();
+  let latestBackup = null;
+  try {
+    latestBackup = getLatestBackupMeta();
+  } catch (err) {
+    console.warn("[persistence] Falha ao ler backups:", err.message);
+  }
   const lifecycle = getLifecycleConfig();
 
   return {
@@ -70,7 +83,7 @@ export function getPersistenceStatus() {
     onRailway,
     production,
     dataAtRisk,
-    volumeMounted: onRailway ? fs.existsSync("/data") : null,
+    volumeMounted: onRailway ? Boolean(volumeDir && fs.existsSync(volumeDir)) : null,
     volumeWritable,
     projectCount,
     userCount,

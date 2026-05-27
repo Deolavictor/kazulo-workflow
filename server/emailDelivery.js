@@ -212,30 +212,46 @@ export async function verifyEmailConnection() {
 }
 
 export function getDailyEmailConfigStatus() {
-  const provider = getEmailProvider();
-  const missing = [];
-  if (!parseRawRecipients().length) missing.push("DAILY_REPORT_TO");
-  if (!provider) {
-    missing.push("BREVO_API_KEY (recomendado)");
-  }
-  if (provider && provider !== "smtp" && !getSender()?.email) {
-    missing.push("EMAIL_SENDER_EMAIL");
-  }
+  try {
+    const provider = getEmailProvider();
+    const missing = [];
+    if (!parseRawRecipients().length) missing.push("DAILY_REPORT_TO");
+    if (!provider) {
+      missing.push("BREVO_API_KEY (recomendado)");
+    }
+    if (provider && provider !== "smtp" && !getSender()?.email) {
+      missing.push("EMAIL_SENDER_EMAIL");
+    }
 
-  const enabled = getSetting("daily_report_enabled");
-  return {
-    enabled,
-    provider,
-    recipients: parseRawRecipients(),
-    cron: getSetting("daily_report_cron") || "0 17 * * 1-5",
-    timezone: getSetting("daily_report_tz") || "America/Sao_Paulo",
-    senderEmail: getSender()?.email || null,
-    senderName: getSender()?.name || null,
-    ready: isEmailConfigured() && enabled,
-    missingVars: missing,
-    railwayHint:
-      provider === "smtp"
-        ? "SMTP costuma falhar no Railway Hobby. Prefira BREVO_API_KEY (API HTTPS)."
-        : null
-  };
+    const enabled = getSetting("daily_report_enabled");
+    return {
+      enabled,
+      provider,
+      recipients: parseRawRecipients(),
+      cron: getSetting("daily_report_cron") || "0 17 * * 1-5",
+      timezone: getSetting("daily_report_tz") || "America/Sao_Paulo",
+      senderEmail: getSender()?.email || null,
+      senderName: getSender()?.name || null,
+      ready: isEmailConfigured() && enabled,
+      missingVars: missing,
+      railwayHint:
+        provider === "smtp"
+          ? "SMTP costuma falhar no Railway Hobby. Prefira BREVO_API_KEY (API HTTPS)."
+          : null
+    };
+  } catch (err) {
+    console.error("[email] status:", err);
+    return {
+      enabled: false,
+      provider: null,
+      recipients: [],
+      cron: "0 17 * * 1-5",
+      timezone: "America/Sao_Paulo",
+      senderEmail: null,
+      senderName: null,
+      ready: false,
+      missingVars: ["erro ao ler configurações"],
+      railwayHint: err.message || null
+    };
+  }
 }

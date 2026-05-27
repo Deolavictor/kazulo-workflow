@@ -14,26 +14,50 @@ export function ConfiguracoesView() {
   const [backupConfig, setBackupConfig] = useState(null);
   const [backupRunning, setBackupRunning] = useState(false);
   const [persistence, setPersistence] = useState(null);
+  const [loadError, setLoadError] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const [settingsRes, statusRes, backupsRes, persistenceRes] = await Promise.all([
-        api.fetchSettings(),
-        api.dailyReportStatus(),
-        api.fetchBackups(),
-        api.fetchPersistence()
-      ]);
-      setSettings(settingsRes.settings);
-      setEmailStatus(statusRes);
-      setBackups(backupsRes.backups || []);
-      setBackupConfig(backupsRes.config || null);
-      setPersistence(persistenceRes);
-    } catch (err) {
-      alert(err.message || "Erro ao carregar configurações");
-    } finally {
-      setLoading(false);
+    setLoadError("");
+    const [settingsR, statusR, backupsR, persistenceR] = await Promise.allSettled([
+      api.fetchSettings(),
+      api.dailyReportStatus(),
+      api.fetchBackups(),
+      api.fetchPersistence()
+    ]);
+
+    const errors = [];
+
+    if (settingsR.status === "fulfilled") {
+      setSettings(settingsR.value.settings ?? settingsR.value);
+    } else {
+      errors.push(settingsR.reason?.message || "configurações");
     }
+
+    if (statusR.status === "fulfilled") {
+      setEmailStatus(statusR.value);
+    } else {
+      errors.push(statusR.reason?.message || "status do e-mail");
+    }
+
+    if (backupsR.status === "fulfilled") {
+      setBackups(backupsR.value.backups || []);
+      setBackupConfig(backupsR.value.config || null);
+    } else {
+      errors.push(backupsR.reason?.message || "backups");
+    }
+
+    if (persistenceR.status === "fulfilled") {
+      setPersistence(persistenceR.value);
+    }
+
+    if (errors.length) {
+      setLoadError(
+        `Não foi possível carregar: ${errors.join(", ")}. Recarregue a página ou faça redeploy se o erro persistir.`
+      );
+    }
+
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -63,6 +87,10 @@ export function ConfiguracoesView() {
     setVerifyMsg("");
     try {
       const res = await api.verifyEmail();
+      if (res.ok === false) {
+        setVerifyMsg(res.error || "Falha na verificação");
+        return;
+      }
       setVerifyMsg(
         `Conexão OK (${res.provider}${res.email ? ` — ${res.email}` : ""})`
       );
@@ -123,8 +151,21 @@ export function ConfiguracoesView() {
     }
   }
 
-  if (loading || !settings) {
+  if (loading) {
     return <div className="board-loading">Carregando configurações…</div>;
+  }
+
+  if (!settings) {
+    return (
+      <div className="admin-page">
+        <div className="admin-status-banner warn">
+          {loadError || "Erro ao carregar configurações."}
+        </div>
+        <button type="button" className="btn-secondary" onClick={load}>
+          Tentar novamente
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -133,6 +174,10 @@ export function ConfiguracoesView() {
         <h2>Configurações</h2>
         <p>Relatório diário por e-mail e URL pública do sistema</p>
       </div>
+
+      {loadError && (
+        <div className="admin-status-banner warn">{loadError}</div>
+      )}
 
       {persistence && (
         <div

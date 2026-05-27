@@ -44,10 +44,12 @@ import {
 } from "./backupLifecycle.js";
 import { startBackupScheduler } from "./backupScheduler.js";
 import { getAllSettings, setSettings, getPublicSettings } from "./appSettings.js";
-import { restartDailyReportScheduler } from "./dailyScheduler.js";
+import {
+  restartDailyReportScheduler,
+  startDailyReportScheduler
+} from "./dailyScheduler.js";
 import { validateProjectUpdate } from "./validateProject.js";
 import { canUserEditProjectMeta } from "./workflowRules.js";
-import { startDailyReportScheduler } from "./dailyScheduler.js";
 import { getPersistenceStatus, logPersistenceOnStartup } from "./persistence.js";
 import {
   getDailyEmailConfigStatus,
@@ -246,23 +248,33 @@ app.get("/api/history", authMiddleware, (req, res) => {
 });
 
 app.get("/api/admin/settings", authMiddleware, requireAdmin, (_req, res) => {
-  res.json({
-    settings: getAllSettings(),
-    public: getPublicSettings()
-  });
+  try {
+    res.json({
+      settings: getAllSettings(),
+      public: getPublicSettings()
+    });
+  } catch (err) {
+    console.error("[settings] GET:", err);
+    res.status(500).json({ error: err.message || "Falha ao carregar configurações" });
+  }
 });
 
 app.put("/api/admin/settings", authMiddleware, requireAdmin, (req, res) => {
-  const partial = req.body?.settings ?? req.body;
-  if (!partial || typeof partial !== "object") {
-    return res.status(400).json({ error: "Envie { settings: { ... } }" });
+  try {
+    const partial = req.body?.settings ?? req.body;
+    if (!partial || typeof partial !== "object") {
+      return res.status(400).json({ error: "Envie { settings: { ... } }" });
+    }
+    const settings = setSettings(partial);
+    restartDailyReportScheduler();
+    res.json({
+      settings,
+      emailStatus: getDailyEmailConfigStatus()
+    });
+  } catch (err) {
+    console.error("[settings] PUT:", err);
+    res.status(500).json({ error: err.message || "Falha ao salvar configurações" });
   }
-  const settings = setSettings(partial);
-  restartDailyReportScheduler();
-  res.json({
-    settings,
-    emailStatus: getDailyEmailConfigStatus()
-  });
 });
 
 app.get("/api/projects", authMiddleware, (_req, res) => {
@@ -337,10 +349,10 @@ app.get("/api/admin/daily-report/status", authMiddleware, requireAdmin, (_req, r
 app.post("/api/admin/daily-report/verify-smtp", authMiddleware, requireAdmin, async (_req, res) => {
   try {
     const result = await verifyEmailConnection();
-    res.json(result);
+    res.json({ ok: true, ...result });
   } catch (err) {
     console.error("[email] verify-smtp:", err);
-    res.status(500).json({ error: err.message || "Falha na conexão SMTP" });
+    res.json({ ok: false, error: err.message || "Falha na verificação de e-mail" });
   }
 });
 
@@ -358,11 +370,21 @@ app.get("/api/admin/daily-report/welcome-preview", authMiddleware, requireAdmin,
 });
 
 app.get("/api/admin/persistence", authMiddleware, requireAdmin, (_req, res) => {
-  res.json(getPersistenceStatus());
+  try {
+    res.json(getPersistenceStatus());
+  } catch (err) {
+    console.error("[persistence]", err);
+    res.status(500).json({ error: err.message || "Falha ao ler persistência" });
+  }
 });
 
 app.get("/api/admin/backups", authMiddleware, requireAdmin, (_req, res) => {
-  res.json({ backups: listBackups(), config: getBackupConfig() });
+  try {
+    res.json({ backups: listBackups(), config: getBackupConfig() });
+  } catch (err) {
+    console.error("[backup] list:", err);
+    res.status(500).json({ error: err.message || "Falha ao listar backups" });
+  }
 });
 
 app.post("/api/admin/backups/run", authMiddleware, requireAdmin, async (_req, res) => {
