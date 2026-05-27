@@ -2703,6 +2703,15 @@ body,
   font-weight: 600;
 }
 
+.forecasts-stat--compras {
+  border-color: #e9d5ff;
+  background: #faf5ff;
+}
+
+.forecasts-stat--compras .forecasts-stat-value {
+  color: #7e22ce;
+}
+
 .forecasts-gate-legend {
   background: var(--card);
   border: 1px solid var(--border);
@@ -2844,6 +2853,20 @@ body,
   margin: 0;
 }
 
+.forecast-alert-banner--supplier {
+  background: #faf5ff;
+  border-color: #e9d5ff;
+}
+
+.forecast-alert-banner--supplier p {
+  color: #5b21b6;
+}
+
+.forecast-card--supplier {
+  border-color: #e9d5ff;
+  box-shadow: 0 0 0 1px rgba(147, 51, 234, 0.12);
+}
+
 .forecast-blockers {
   list-style: none;
   display: flex;
@@ -2887,6 +2910,16 @@ body,
   font-size: 14px;
   font-weight: 700;
   color: var(--text);
+}
+
+.forecast-blocker--supplier {
+  border-color: #e9d5ff;
+  background: #fdf4ff;
+}
+
+.forecast-blocker-activity--supplier {
+  color: #6b21a8;
+  line-height: 1.4;
 }
 
 .forecast-blocker-meta {

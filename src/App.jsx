@@ -1910,16 +1910,19 @@ function getDaysLate(dueDateStr) {
 }
 
 function buildComprasSupplierForecastBlockers(project) {
+  const productionStart = getProductionStartDate(project);
   return COMPRAS_ITEM_KEYS.map((key) => {
     if (!isSupplierDeadlineBlockingProduction(project, key)) return null;
+    const label = CHECKLIST_LABELS[key];
     return {
       key,
-      label: CHECKLIST_LABELS[key],
+      label,
       sector: "Compras",
       dueDate: project.supplierDeadlines[key],
       supplierDeadline: true,
       daysLate: getSupplierProductionGapDays(project, key),
-      productionStart: getProductionStartDate(project)
+      productionStart,
+      message: `Prazo do fornecedor (${label}) não atende o início de produção`
     };
   }).filter(Boolean);
 }
@@ -1945,14 +1948,16 @@ function buildProductionForecasts(projects, sectorFilter) {
     }).filter(Boolean);
 
     const supplierBlockers = buildComprasSupplierForecastBlockers(project);
-    const blockers = [...gateBlockers, ...supplierBlockers];
 
-    if (blockers.length === 0) return;
+    if (gateBlockers.length === 0 && supplierBlockers.length === 0) return;
 
-    const visibleBlockers =
+    const visibleGateBlockers =
       sectorFilter === "Todos"
-        ? blockers
-        : blockers.filter((b) => b.sector === sectorFilter);
+        ? gateBlockers
+        : gateBlockers.filter((b) => b.sector === sectorFilter);
+
+    // Prazo do fornecedor impacta o início de produção — sempre visível em Previsões
+    const visibleBlockers = [...visibleGateBlockers, ...supplierBlockers];
 
     if (visibleBlockers.length === 0) return;
 
@@ -2516,6 +2521,10 @@ function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
   const [sectorFilter, setSectorFilter] = useState("Todos");
   const effectiveFilter = isAdmin ? sectorFilter : userSector || "Todos";
   const forecasts = buildProductionForecasts(projects, effectiveFilter);
+  const supplierAlertCount = forecasts.reduce(
+    (n, f) => n + f.blockers.filter((b) => b.supplierDeadline).length,
+    0
+  );
 
   return (
     <div className="forecasts-view">
@@ -2524,8 +2533,8 @@ function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
           <h2>Previsões</h2>
           <p>
             {isAdmin
-              ? "Risco no início de produção: itens críticos vencidos ou prazo do fornecedor (Compras) após a data prevista"
-              : `Alertas do setor ${userSector} que podem impactar o início de produção`}
+              ? "Risco no início de produção: itens críticos vencidos ou quando o prazo do fornecedor (Compras) não atende a data de início de produção"
+              : `Alertas do setor ${userSector} e prazos de fornecedor que impactam o início de produção`}
           </p>
         </div>
         {isAdmin && (
@@ -2551,6 +2560,12 @@ function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
           <span className="forecasts-stat-value">{PRODUCTION_GATE_KEYS.length}</span>
           <span className="forecasts-stat-label">itens críticos monitorados</span>
         </div>
+        {supplierAlertCount > 0 && (
+          <div className="forecasts-stat forecasts-stat--compras">
+            <span className="forecasts-stat-value">{supplierAlertCount}</span>
+            <span className="forecasts-stat-label">prazo fornecedor × início produção</span>
+          </div>
+        )}
       </div>
 
       <div className="forecasts-gate-legend">
@@ -2572,14 +2587,20 @@ function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
           <span className="forecasts-empty-icon">✓</span>
           <h3>Nenhum risco identificado</h3>
           <p>
-            Nenhuma atividade crítica está atrasada
-            {effectiveFilter !== "Todos" ? ` no setor ${effectiveFilter}` : ""}.
+            Nenhuma atividade crítica atrasada nem prazo de fornecedor após o início de
+            produção
+            {effectiveFilter !== "Todos" ? ` (filtro: ${effectiveFilter})` : ""}.
           </p>
         </div>
       ) : (
         <div className="forecasts-list">
-          {forecasts.map(({ project, productionStart, blockers }) => (
-            <article key={project.id} className="forecast-card">
+          {forecasts.map(({ project, productionStart, blockers }) => {
+            const hasSupplierRisk = blockers.some((b) => b.supplierDeadline);
+            return (
+            <article
+              key={project.id}
+              className={`forecast-card${hasSupplierRisk ? " forecast-card--supplier" : ""}`}
+            >
               <div className="forecast-card-top">
                 <div>
                   <h3>{project.name}</h3>
@@ -2601,11 +2622,23 @@ function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
                 </div>
               </div>
 
-              <div className="forecast-alert-banner">
+              <div
+                className={`forecast-alert-banner${hasSupplierRisk ? " forecast-alert-banner--supplier" : ""}`}
+              >
                 <span className="forecast-alert-icon">⚠</span>
                 <p>
-                  Este produto pode <strong>atrasar o início de produção</strong> por pendência
-                  vencida nos setores abaixo.
+                  {hasSupplierRisk ? (
+                    <>
+                      Este produto pode <strong>atrasar o início de produção</strong>: o prazo
+                      prometido pelo fornecedor em Compras está <strong>depois</strong> da data
+                      prevista de início ({formatDate(productionStart)}).
+                    </>
+                  ) : (
+                    <>
+                      Este produto pode <strong>atrasar o início de produção</strong> por pendência
+                      vencida nos setores abaixo.
+                    </>
+                  )}
                 </p>
               </div>
 
@@ -2613,7 +2646,10 @@ function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
                 {blockers.map((b) => {
                   const theme = STAGE_THEMES[b.sector];
                   return (
-                    <li key={b.key} className="forecast-blocker">
+                    <li
+                      key={`${b.key}-${b.supplierDeadline ? "sup" : "gate"}`}
+                      className={`forecast-blocker${b.supplierDeadline ? " forecast-blocker--supplier" : ""}`}
+                    >
                       <div
                         className="forecast-blocker-sector"
                         style={{
@@ -2626,23 +2662,28 @@ function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
                         <strong>{b.sector}</strong>
                       </div>
                       <div className="forecast-blocker-detail">
-                        <span className="forecast-blocker-activity">{b.label}</span>
-                        <span className="forecast-blocker-meta">
-                          {b.supplierDeadline ? (
-                            <>
-                              Fornecedor {formatDate(b.dueDate)} · início produção{" "}
+                        {b.supplierDeadline ? (
+                          <>
+                            <span className="forecast-blocker-activity forecast-blocker-activity--supplier">
+                              {b.message}
+                            </span>
+                            <span className="forecast-blocker-meta">
+                              Entrega fornecedor {formatDate(b.dueDate)} · início produção{" "}
                               {formatDate(b.productionStart)} ·{" "}
                               <strong className="late">
-                                {b.daysLate} dia(s) depois do início
+                                {b.daysLate} dia(s) após o início previsto
                               </strong>
-                            </>
-                          ) : (
-                            <>
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="forecast-blocker-activity">{b.label}</span>
+                            <span className="forecast-blocker-meta">
                               Prazo {formatDate(b.dueDate)} ·{" "}
                               <strong className="late">{b.daysLate} dia(s) de atraso</strong>
-                            </>
-                          )}
-                        </span>
+                            </span>
+                          </>
+                        )}
                       </div>
                     </li>
                   );
@@ -2657,7 +2698,8 @@ function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
                 Ver projeto no fluxo →
               </button>
             </article>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

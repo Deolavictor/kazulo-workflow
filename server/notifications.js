@@ -86,7 +86,7 @@ export function buildUserNotifications(projects, user) {
         itemKey: b.key,
         label: b.label,
         daysLate: b.daysLate,
-        message: `Fornecedor (${b.label}): entrega ${formatDateBr(b.dueDate)} após início produção ${formatDateBr(getProductionStartDate(project))}`,
+        message: `Prazo do fornecedor (${b.label}) não atende o início de produção — entrega ${formatDateBr(b.dueDate)}, início ${formatDateBr(getProductionStartDate(project))}`,
         at: new Date().toISOString(),
         href: { menu: "Previsoes", projectId: project.id }
       });
