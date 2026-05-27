@@ -20,6 +20,7 @@ import {
   insertProject,
   updateProject,
   deleteProject,
+  restoreFromBackupFile,
   projectExists,
   getReadNotificationIds,
   markNotificationsRead,
@@ -36,7 +37,11 @@ import {
   buildChatNotifications,
   isChatMessageReadForUser
 } from "./chat.js";
-import { listBackups, runDatabaseBackup, getBackupFilePath, getBackupConfig } from "./backup.js";
+import { listBackups, runDatabaseBackup, getBackupFilePath } from "./backup.js";
+import {
+  backupOnStartupIfNeeded,
+  registerShutdownBackup
+} from "./backupLifecycle.js";
 import { startBackupScheduler } from "./backupScheduler.js";
 import { getAllSettings, setSettings, getPublicSettings } from "./appSettings.js";
 import { restartDailyReportScheduler } from "./dailyScheduler.js";
@@ -375,6 +380,25 @@ app.get("/api/admin/backups/:filename", authMiddleware, requireAdmin, (req, res)
   res.download(filePath, req.params.filename);
 });
 
+app.post(
+  "/api/admin/backups/:filename/restore",
+  authMiddleware,
+  requireAdmin,
+  async (req, res) => {
+    const filePath = getBackupFilePath(req.params.filename);
+    if (!filePath) {
+      return res.status(404).json({ error: "Backup não encontrado" });
+    }
+    try {
+      const result = await restoreFromBackupFile(filePath);
+      res.json({ ok: true, ...result });
+    } catch (err) {
+      console.error("[backup] restore:", err);
+      res.status(500).json({ error: err.message || "Falha ao restaurar backup" });
+    }
+  }
+);
+
 app.post("/api/admin/daily-report/welcome", authMiddleware, requireAdmin, async (_req, res) => {
   try {
     const result = await sendWelcomeEmail();
@@ -394,12 +418,14 @@ if (process.env.NODE_ENV === "production") {
 }
 
 logPersistenceOnStartup();
+registerShutdownBackup();
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`[kazulo] API em http://localhost:${PORT}`);
   if (process.env.NODE_ENV === "production") {
     console.log("[kazulo] Frontend estático servido de /dist");
   }
   startDailyReportScheduler();
   startBackupScheduler();
+  await backupOnStartupIfNeeded();
 });

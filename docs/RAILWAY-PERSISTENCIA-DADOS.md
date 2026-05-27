@@ -26,7 +26,15 @@ No serviço → **Variables**:
 DB_PATH=/data/kazulo.db
 BACKUP_DIR=/data/backups
 BACKUP_ENABLED=true
+BACKUP_ON_STARTUP=true
+BACKUP_ON_CHANGE=true
+BACKUP_ON_SHUTDOWN=true
+AUTO_RESTORE_FROM_BACKUP=true
 ```
+
+Com isso o sistema:
+- **Salva cópia** ao alterar projetos, ao subir, ao desligar (deploy) e todo dia às 03h
+- **Restaura sozinho** se o banco abrir vazio mas existir backup com projetos no volume
 
 Confirme também `NODE_ENV=production` e `JWT_SECRET` (não mude `JWT_SECRET` depois de já estar em uso, senão todos precisam logar de novo).
 

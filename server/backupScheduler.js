@@ -22,7 +22,7 @@ export function startBackupScheduler() {
     expression,
     async () => {
       try {
-        await runDatabaseBackup();
+        await runDatabaseBackup({ reason: "scheduled" });
       } catch (err) {
         console.error("[backup] Falha no backup:", err.message);
       }

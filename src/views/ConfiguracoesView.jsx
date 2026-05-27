@@ -85,6 +85,29 @@ export function ConfiguracoesView() {
     }
   }
 
+  async function handleRestoreBackup(filename) {
+    if (
+      !window.confirm(
+        `Restaurar "${filename}"? Os dados atuais serão substituídos (uma cópia de segurança é gerada antes).`
+      )
+    ) {
+      return;
+    }
+    setBackupRunning(true);
+    try {
+      const res = await api.restoreBackup(filename);
+      await load();
+      alert(
+        res.message ||
+          `Restaurado (${res.projectCount} projeto(s)). Recarregue a página se a lista não atualizar.`
+      );
+    } catch (err) {
+      alert(err.message || "Falha ao restaurar");
+    } finally {
+      setBackupRunning(false);
+    }
+  }
+
   async function handleSendTest() {
     if (!window.confirm("Enviar relatório de atrasos agora para os destinatários configurados?")) {
       return;
@@ -136,11 +159,27 @@ export function ConfiguracoesView() {
               </ol>
             </>
           ) : (
-            <p>
-              <strong>Dados protegidos.</strong> Banco em{" "}
-              <code>{persistence.dbPath}</code> — {persistence.projectCount} projeto(s) no
-              servidor. Backups em <code>{persistence.backupDir}</code>.
-            </p>
+            <>
+              <p>
+                <strong>Dados protegidos.</strong> Banco em{" "}
+                <code>{persistence.dbPath}</code> — {persistence.projectCount} projeto(s) no
+                servidor. Backups em <code>{persistence.backupDir}</code>.
+              </p>
+              {persistence.lifecycle && (
+                <p className="persistence-lifecycle">
+                  Backup automático: ao <strong>subir</strong> o servidor, após{" "}
+                  <strong>alterações</strong> nos projetos (~1 min), ao <strong>desligar</strong>{" "}
+                  (deploy) e diário às 03h. Se o banco vier vazio, tenta{" "}
+                  <strong>restaurar</strong> o backup mais recente com projetos.
+                </p>
+              )}
+              {persistence.latestBackup && (
+                <p className="persistence-lifecycle">
+                  Última cópia: <code>{persistence.latestBackup.filename}</code> (
+                  {new Date(persistence.latestBackup.createdAt).toLocaleString("pt-BR")})
+                </p>
+              )}
+            </>
           )}
           {persistence.warnings?.length > 0 && (
             <ul className="persistence-warnings">
@@ -258,9 +297,10 @@ export function ConfiguracoesView() {
         <h3>Backup do banco de dados</h3>
         {backupConfig && (
           <p className="admin-hint">
-            Automático: {backupConfig.enabled ? "ativo" : "desativado"} — cron{" "}
+            Diário: {backupConfig.enabled ? "ativo" : "desativado"} — cron{" "}
             <code>{backupConfig.cron}</code> — mantém {backupConfig.retainCount} cópias em{" "}
-            <code>{backupConfig.backupDir}</code>
+            <code>{backupConfig.backupDir}</code>. Também salva ao alterar projetos, ao iniciar o
+            servidor e antes de cada deploy (desligamento).
           </p>
         )}
         <div className="admin-form-actions">
@@ -291,13 +331,21 @@ export function ConfiguracoesView() {
                   <td><code>{b.filename}</code></td>
                   <td>{new Date(b.createdAt).toLocaleString("pt-BR")}</td>
                   <td>{(b.sizeBytes / 1024).toFixed(1)} KB</td>
-                  <td>
+                  <td className="admin-table-actions">
                     <button
                       type="button"
                       className="btn-secondary btn-sm"
                       onClick={() => api.downloadBackup(b.filename)}
                     >
                       Baixar
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary btn-sm"
+                      disabled={backupRunning}
+                      onClick={() => handleRestoreBackup(b.filename)}
+                    >
+                      Restaurar
                     </button>
                   </td>
                 </tr>

@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
+import { getLatestBackupMeta } from "./backup.js";
 import { getDbPath, getDbCounts } from "./db.js";
+import { getLifecycleConfig } from "./backupLifecycle.js";
 
 const PERSISTENT_DB_PREFIXES = ["/data/", "/var/data/"];
 
@@ -58,6 +60,9 @@ export function getPersistenceStatus() {
   const backupDir =
     process.env.BACKUP_DIR || path.join(path.dirname(dbPath), "backups");
 
+  const latestBackup = getLatestBackupMeta();
+  const lifecycle = getLifecycleConfig();
+
   return {
     dbPath,
     backupDir,
@@ -70,6 +75,8 @@ export function getPersistenceStatus() {
     projectCount,
     userCount,
     warnings,
+    latestBackup,
+    lifecycle,
     recommended: {
       DB_PATH: "/data/kazulo.db",
       BACKUP_DIR: "/data/backups",

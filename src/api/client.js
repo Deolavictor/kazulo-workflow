@@ -142,6 +142,11 @@ export const api = {
 
   runBackup: () => request("/admin/backups/run", { method: "POST" }),
 
+  restoreBackup: (filename) =>
+    request(`/admin/backups/${encodeURIComponent(filename)}/restore`, {
+      method: "POST"
+    }),
+
   downloadBackup: async (filename) => {
     const token = getToken();
     const res = await fetch(

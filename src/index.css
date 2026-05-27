@@ -3638,6 +3638,18 @@ body,
   font-size: 12px;
 }
 
+.persistence-lifecycle {
+  font-size: 12px;
+  margin: 8px 0 0;
+  line-height: 1.45;
+}
+
+.admin-table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .admin-hint--box {
   padding: 12px;
   background: #f8fafc;

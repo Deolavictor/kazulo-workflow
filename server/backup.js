@@ -21,6 +21,15 @@ function timestampSlug() {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
 
+const SAFE_REASON = /^[a-z]+$/;
+
+function buildBackupFilename(reason) {
+  const slug = timestampSlug();
+  const tag =
+    reason && SAFE_REASON.test(reason) && reason !== "scheduled" ? reason : null;
+  return tag ? `kazulo-${tag}-${slug}.db` : `kazulo-${slug}.db`;
+}
+
 function pruneOldBackups() {
   const files = fs
     .readdirSync(BACKUP_DIR)
@@ -54,7 +63,7 @@ export function listBackups() {
 }
 
 export function getBackupFilePath(filename) {
-  if (!/^kazulo-\d{8}-\d{6}\.db$/.test(filename)) {
+  if (!/^kazulo-([a-z]+-)?\d{8}-\d{6}\.db$/.test(filename)) {
     return null;
   }
   const full = path.join(BACKUP_DIR, filename);
@@ -62,9 +71,9 @@ export function getBackupFilePath(filename) {
   return full;
 }
 
-export async function runDatabaseBackup() {
+export async function runDatabaseBackup(options = {}) {
   ensureBackupDir();
-  const filename = `kazulo-${timestampSlug()}.db`;
+  const filename = buildBackupFilename(options.reason);
   const dest = path.join(BACKUP_DIR, filename);
 
   await db.backup(dest);
@@ -72,15 +81,24 @@ export async function runDatabaseBackup() {
   pruneOldBackups();
 
   const stat = fs.statSync(dest);
-  console.log(`[backup] Cópia criada: ${filename} (${stat.size} bytes)`);
+  const reasonLabel = options.reason ? ` [${options.reason}]` : "";
+  console.log(
+    `[backup] Cópia criada${reasonLabel}: ${filename} (${stat.size} bytes)`
+  );
 
   return {
     filename,
     path: dest,
     sizeBytes: stat.size,
     createdAt: stat.mtime.toISOString(),
-    backupDir: BACKUP_DIR
+    backupDir: BACKUP_DIR,
+    reason: options.reason || "manual"
   };
+}
+
+export function getLatestBackupMeta() {
+  const list = listBackups();
+  return list[0] || null;
 }
 
 export function getBackupConfig() {

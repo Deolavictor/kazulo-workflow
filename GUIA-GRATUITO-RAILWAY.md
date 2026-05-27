@@ -97,6 +97,11 @@ JWT_SECRET=coloque-uma-frase-longa-aleatoria-aqui-minimo-32-caracteres
 ADMIN_PASSWORD=SuaSenhaAdminForte123
 DEFAULT_USER_PASSWORD=SuaSenhaSetoresForte123
 DB_PATH=/data/kazulo.db
+BACKUP_DIR=/data/backups
+BACKUP_ON_STARTUP=true
+BACKUP_ON_CHANGE=true
+BACKUP_ON_SHUTDOWN=true
+AUTO_RESTORE_FROM_BACKUP=true
 ```
 
 | Variável | Para quê |

@@ -1,17 +1,26 @@
+import fs from "fs";
+import path from "path";
 import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
-import path from "path";
-import { fileURLToPath } from "url";
 import { KANBAN_STAGES } from "./workflowRules.js";
+import {
+  bootstrapDatabaseFile,
+  countProjectsInFile,
+  resolveBackupDir
+} from "./databaseBootstrap.js";
+import { scheduleBackupAfterDataChange } from "./backupLifecycle.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = process.env.DB_PATH || path.join(__dirname, "data", "kazulo.db");
+const { dbPath } = bootstrapDatabaseFile();
 
-import fs from "fs";
-fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-
-const db = new Database(dbPath);
+let db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
+
+function removeWalSidecars(targetPath) {
+  for (const suffix of ["-wal", "-shm"]) {
+    const p = targetPath + suffix;
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+  }
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -270,21 +279,28 @@ export function getProjectById(id) {
   return row ? JSON.parse(row.data) : null;
 }
 
+function notifyDataChanged() {
+  scheduleBackupAfterDataChange();
+}
+
 export function insertProject(project) {
   db.prepare("INSERT INTO projects (id, data) VALUES (?, ?)").run(
     project.id,
     JSON.stringify(project)
   );
+  notifyDataChanged();
 }
 
 export function updateProject(project) {
   db.prepare(
     "UPDATE projects SET data = ?, updated_at = datetime('now') WHERE id = ?"
   ).run(JSON.stringify(project), project.id);
+  notifyDataChanged();
 }
 
 export function deleteProject(id) {
   db.prepare("DELETE FROM projects WHERE id = ?").run(id);
+  notifyDataChanged();
 }
 
 export function projectExists(id) {
@@ -323,6 +339,32 @@ export function markNotificationsRead(userId, ids) {
 
 export function markAllNotificationsRead(userId, notificationIds) {
   markNotificationsRead(userId, notificationIds);
+}
+
+export async function restoreFromBackupFile(backupPath) {
+  const projectCount = countProjectsInFile(backupPath);
+  if (projectCount === 0) {
+    throw new Error("Este backup não contém projetos");
+  }
+
+  const backupDir = resolveBackupDir(dbPath);
+  fs.mkdirSync(backupDir, { recursive: true });
+  const preRestoreName = `kazulo-pre-restore-${Date.now()}.db`;
+  const preRestorePath = path.join(backupDir, preRestoreName);
+  await db.backup(preRestorePath);
+
+  db.close();
+  removeWalSidecars(dbPath);
+  fs.copyFileSync(backupPath, dbPath);
+  removeWalSidecars(dbPath);
+  db = new Database(dbPath);
+  db.pragma("journal_mode = WAL");
+
+  return {
+    projectCount,
+    preRestoreBackup: preRestoreName,
+    message: "Backup restaurado com sucesso."
+  };
 }
 
 export { KANBAN_STAGES, db, SECTOR_VALUES };
