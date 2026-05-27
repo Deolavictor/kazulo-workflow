@@ -1333,6 +1333,10 @@ function App() {
             </div>
 
             <div
+              className={`kanban-viewport ${visibleKanbanStages.length === 1 ? "kanban-viewport--filtered" : ""}`}
+              title="Use a barra abaixo ou Shift + roda do mouse para ver outros setores"
+            >
+            <div
               className={`kanban-board ${visibleKanbanStages.length === 1 ? "kanban-board--filtered" : ""}`}
             >
               {visibleKanbanStages.map((stage) => {
@@ -1415,6 +1419,7 @@ function App() {
                   </div>
                 );
               })}
+            </div>
             </div>
 
             {selectedProject && (
