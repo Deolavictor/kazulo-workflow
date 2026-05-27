@@ -1345,6 +1345,16 @@ body,
   color: #dc2626;
 }
 
+.item-due-date--supplier-risk {
+  color: #7e22ce;
+  font-weight: 700;
+}
+
+.forecast-supplier-done-note {
+  color: #7e22ce;
+  font-weight: 600;
+}
+
 .checklist-dot-row {
   display: flex;
   align-items: center;

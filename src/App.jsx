@@ -302,10 +302,14 @@ function getActivityStatus(project, itemKey) {
   if (!isActivityLiberated(project, itemKey)) return "locked";
   if (isActivityDone(project, itemKey)) return "done";
   if (isActivityInProgress(project, itemKey)) return "progress";
-  if (isSupplierDeadlineBlockingProduction(project, itemKey)) return "late";
   const due = project.checklistDates?.[itemKey];
   if (isItemLate(due)) return "late";
   return "liberated";
+}
+
+/** Compras: risco do fornecedor é independente do checklist da atividade */
+function hasComprasSupplierProductionRisk(project, itemKey) {
+  return isSupplierDeadlineBlockingProduction(project, itemKey);
 }
 
 function getSectorItems(stage) {
@@ -320,6 +324,12 @@ function sectorHasActiveCard(project, stage) {
   if (isProjectFullyComplete(project)) return false;
   const items = getSectorItems(stage);
   if (items.length === 0) return false;
+  if (
+    stage === "Compras" &&
+    items.some((item) => hasComprasSupplierProductionRisk(project, item))
+  ) {
+    return true;
+  }
   const statuses = items.map((item) => getActivityStatus(project, item));
   return !statuses.every((s) => s === "done");
 }
@@ -348,7 +358,6 @@ function getProductionStartDate(project) {
 
 function isSupplierDeadlineBlockingProduction(project, itemKey) {
   if (!COMPRAS_ITEM_KEYS.includes(itemKey)) return false;
-  if (isActivityDone(project, itemKey)) return false;
   const supplier = project.supplierDeadlines?.[itemKey];
   if (!supplier) return false;
   const sup = new Date(supplier);
@@ -369,13 +378,17 @@ function getSupplierProductionGapDays(project, itemKey) {
 
 function isActivityOverdue(project, itemKey) {
   if (isActivityDone(project, itemKey)) return false;
-  if (isSupplierDeadlineBlockingProduction(project, itemKey)) return true;
   const due = project.checklistDates?.[itemKey];
   return isItemLate(due);
 }
 
 function sectorHasLateItem(project, stage) {
-  return getSectorItems(stage).some((item) => isActivityOverdue(project, item));
+  return getSectorItems(stage).some((item) => {
+    if (stage === "Compras" && hasComprasSupplierProductionRisk(project, item)) {
+      return true;
+    }
+    return isActivityOverdue(project, item);
+  });
 }
 
 function projectMatchesSectorFilter(project, stage) {
@@ -390,6 +403,11 @@ function getSectorUrgencySortKey(project, stage) {
   let nearestDueMs = Infinity;
 
   items.forEach((item) => {
+    if (stage === "Compras" && hasComprasSupplierProductionRisk(project, item)) {
+      const gap = getSupplierProductionGapDays(project, item);
+      if (gap > maxOverdueDays) maxOverdueDays = gap;
+      return;
+    }
     if (isActivityDone(project, item)) return;
     const due = project.checklistDates?.[item];
     if (!due) return;
@@ -860,6 +878,7 @@ function App() {
       const activities = { ...getProjectActivities(project) };
       let nextValue = false;
       let message = "";
+      const wasDone = isActivityDone(project, item);
 
       if (status === "liberated" || status === "late") {
         nextValue = "in_progress";
@@ -867,12 +886,12 @@ function App() {
       } else if (status === "progress") {
         nextValue = true;
         message = `"${CHECKLIST_LABELS[item]}" concluído (${ACTIVITY_SECTOR[item]})`;
-      } else if (status === "done") {
+      } else if (wasDone) {
         nextValue = false;
         message = `"${CHECKLIST_LABELS[item]}" reaberto`;
       }
 
-      const wasParentDone = isActivityDone(project, item);
+      const wasParentDone = wasDone;
       activities[item] = nextValue;
 
       const dependentsToReset =
@@ -1620,9 +1639,13 @@ function App() {
 
                           const supplierRisk =
                             stageName === "Compras" &&
-                            isSupplierDeadlineBlockingProduction(selectedProject, item);
+                            hasComprasSupplierProductionRisk(selectedProject, item);
+                          const activityDone = isActivityDone(selectedProject, item);
                           const supplierDate =
                             selectedProject.supplierDeadlines?.[item] || "";
+                          const panelIconClass = supplierRisk
+                            ? "late"
+                            : iconClass;
 
                           if (locked) {
                             return (
@@ -1652,7 +1675,7 @@ function App() {
                                   </label>
                                 )}
                                 <div className="checklist-panel-row locked-item">
-                                  <span className={`status-icon ${iconClass}`} />
+                                  <span className={`status-icon ${panelIconClass}`} />
                                   <span style={{ flex: 1 }}>
                                     {CHECKLIST_LABELS[item]}
                                     {deps?.length > 0 && (
@@ -1698,7 +1721,7 @@ function App() {
                             <button
                               type="button"
                               disabled={!editable}
-                              className={`checklist-panel-row ${late ? "late-item" : ""} ${!editable ? "read-only" : ""}`}
+                              className={`checklist-panel-row ${late || supplierRisk ? "late-item" : ""} ${!editable ? "read-only" : ""}`}
                               onClick={() => updateChecklist(selectedProject.id, item)}
                               title={
                                 editable
@@ -1706,14 +1729,16 @@ function App() {
                                   : `Somente o setor ${ACTIVITY_SECTOR[item]} pode alterar`
                               }
                             >
-                              <span className={`status-icon ${iconClass}`}>
-                                {status === "done"
-                                  ? "✓"
-                                  : status === "progress"
-                                    ? "●"
-                                    : late
-                                      ? "!"
-                                      : ""}
+                              <span className={`status-icon ${panelIconClass}`}>
+                                {supplierRisk
+                                  ? "!"
+                                  : status === "done"
+                                    ? "✓"
+                                    : status === "progress"
+                                      ? "●"
+                                      : late
+                                        ? "!"
+                                        : ""}
                               </span>
                               <span
                                 className={`item-label ${status === "done" ? "done" : ""} ${status === "progress" ? "in-progress" : ""}`}
@@ -1914,15 +1939,19 @@ function buildComprasSupplierForecastBlockers(project) {
   return COMPRAS_ITEM_KEYS.map((key) => {
     if (!isSupplierDeadlineBlockingProduction(project, key)) return null;
     const label = CHECKLIST_LABELS[key];
+    const activityDone = isActivityDone(project, key);
     return {
       key,
       label,
       sector: "Compras",
       dueDate: project.supplierDeadlines[key],
       supplierDeadline: true,
+      activityDone,
       daysLate: getSupplierProductionGapDays(project, key),
       productionStart,
-      message: `Prazo do fornecedor (${label}) não atende o início de produção`
+      message: activityDone
+        ? `Prazo do fornecedor (${label}) não atende o início de produção — atividade já concluída`
+        : `Prazo do fornecedor (${label}) não atende o início de produção`
     };
   }).filter(Boolean);
 }
@@ -2668,6 +2697,11 @@ function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
                               {b.message}
                             </span>
                             <span className="forecast-blocker-meta">
+                              {b.activityDone ? (
+                                <span className="forecast-supplier-done-note">
+                                  Checklist concluído ·{" "}
+                                </span>
+                              ) : null}
                               Entrega fornecedor {formatDate(b.dueDate)} · início produção{" "}
                               {formatDate(b.productionStart)} ·{" "}
                               <strong className="late">
@@ -3221,36 +3255,44 @@ function KanbanProjectCard({
           {items.map((item) => {
             const status = getActivityStatus(project, item);
             const locked = !completedView && status === "locked";
-            const done = status === "done";
+            const done = isActivityDone(project, item);
             const supplierRisk =
-              showSupplierFields && isSupplierDeadlineBlockingProduction(project, item);
+              showSupplierFields && hasComprasSupplierProductionRisk(project, item);
             const overdue = isActivityOverdue(project, item);
-            const late = status === "late" || overdue || supplierRisk;
+            const activityLate = status === "late" || overdue;
             const inProgress = status === "progress";
             const dueDate = project.checklistDates?.[item];
             const supplierDate = project.supplierDeadlines?.[item] || "";
-            const iconClass = done
-              ? "done"
-              : locked
-                ? "locked"
-                : inProgress
-                  ? "progress"
-                  : late
-                    ? "late"
-                    : "pending";
-
-            const statusLabel = done
-              ? "concluído"
-              : inProgress
-                ? "em andamento"
+            const iconClass = supplierRisk
+              ? "late"
+              : done
+                ? "done"
                 : locked
-                  ? "bloqueado"
-                  : late
-                    ? "atrasado"
-                    : "liberado";
+                  ? "locked"
+                  : inProgress
+                    ? "progress"
+                    : activityLate
+                      ? "late"
+                      : "pending";
+
+            const statusLabel = supplierRisk
+              ? done
+                ? "concluído — fornecedor em risco"
+                : "fornecedor não atende início produção"
+              : done
+                ? "concluído"
+                : inProgress
+                  ? "em andamento"
+                  : locked
+                    ? "bloqueado"
+                    : activityLate
+                      ? "atrasado"
+                      : "liberado";
 
             const dueDateEl = dueDate ? (
-              <span className={`item-due-date ${late && !done ? "overdue" : ""}`}>
+              <span
+                className={`item-due-date ${activityLate && !done ? "overdue" : ""} ${supplierRisk ? "item-due-date--supplier-risk" : ""}`}
+              >
                 {formatDate(dueDate)}
               </span>
             ) : null;
@@ -3324,7 +3366,7 @@ function KanbanProjectCard({
                 }}
               >
                 <span className={`status-icon ${iconClass}`}>
-                  {done ? "✓" : inProgress ? "●" : late ? "!" : ""}
+                  {supplierRisk ? "!" : done ? "✓" : inProgress ? "●" : activityLate ? "!" : ""}
                 </span>
                 <span
                   className={`item-label ${done ? "done" : ""} ${inProgress ? "in-progress" : ""}`}

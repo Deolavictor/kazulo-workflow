@@ -14,8 +14,6 @@ export function getProductionStartDate(project) {
 /** Fornecedor entrega depois do início de produção → impacta produção */
 export function isSupplierDeadlineBlockingProduction(project, itemKey) {
   if (!COMPRAS_ITEM_KEYS.includes(itemKey)) return false;
-  const activities = project.activities || {};
-  if (activities[itemKey] === true) return false;
 
   const supplier = project.supplierDeadlines?.[itemKey];
   if (!supplier) return false;
