@@ -1440,7 +1440,7 @@ function App() {
                 return (
                   <div
                     key={stage}
-                    className="kanban-column"
+                    className={`kanban-column${stage === "Compras" ? " kanban-column--compras" : ""}`}
                     style={{ background: theme?.bg || "#e9f0fb" }}
                   >
                     <div className="kanban-column-header">
@@ -1455,7 +1455,7 @@ function App() {
                     </div>
                     {stage === "Compras" && (
                       <p className="kanban-compras-supplier-note">
-                        Campo <strong>Fornecedor</strong> (data) à esquerda de cada item no card.
+                        Prazo do <strong>fornecedor</strong> na primeira coluna de cada linha do card.
                       </p>
                     )}
                     <div className="kanban-column-tabs">
@@ -3139,7 +3139,7 @@ function KanbanProjectCard({
 
   return (
     <div
-      className={`project-card ${selected ? "selected" : ""} ${sectorLate ? "late" : ""}`}
+      className={`project-card${showSupplierFields ? " project-card--compras" : ""} ${selected ? "selected" : ""} ${sectorLate ? "late" : ""}`}
       onClick={onSelect}
       onKeyDown={(e) => e.key === "Enter" && onSelect()}
       role="button"
@@ -3160,11 +3160,6 @@ function KanbanProjectCard({
       <div className="card-progress">
         <div className="card-progress-fill" style={{ width: `${progressPct}%` }} />
       </div>
-      {showSupplierFields && !completedView && (
-        <p className="card-supplier-hint">
-          Prazo do fornecedor: use o campo à esquerda de cada item (setor Compras edita).
-        </p>
-      )}
       {items.length > 0 && (
         <div
           className={`checklist-dots ${completedView ? "completed-view" : ""} ${showSupplierFields ? "checklist-dots--compras" : ""}`}
@@ -3174,6 +3169,12 @@ function KanbanProjectCard({
             <p className="card-completed-label">
               {countSectorDoneItems(project, stage)} concluído(s) em {stage}
             </p>
+          )}
+          {showSupplierFields && !completedView && (
+            <div className="compras-card-row-head" aria-hidden="true">
+              <span>Fornecedor</span>
+              <span>Atividade</span>
+            </div>
           )}
           {items.map((item) => {
             const status = getActivityStatus(project, item);
@@ -3214,11 +3215,10 @@ function KanbanProjectCard({
 
             const supplierField = showSupplierFields ? (
               <label
-                className={`supplier-date-field ${supplierRisk ? "supplier-date-field--risk" : ""}`}
+                className={`supplier-date-field supplier-date-field--card ${supplierRisk ? "supplier-date-field--risk" : ""}`}
                 onClick={(e) => e.stopPropagation()}
                 title="Prazo prometido pelo fornecedor (somente Compras)"
               >
-                <span className="supplier-date-label">Fornecedor</span>
                 <input
                   type="date"
                   className="supplier-date-input"
@@ -3228,6 +3228,7 @@ function KanbanProjectCard({
                     onSupplierDeadlineChange?.(item, e.target.value)
                   }
                   onClick={(e) => e.stopPropagation()}
+                  aria-label={`Prazo fornecedor — ${CHECKLIST_LABELS[item]}`}
                 />
               </label>
             ) : null;

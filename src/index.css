@@ -971,6 +971,11 @@ body,
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
+.kanban-column--compras {
+  min-width: 400px;
+  max-width: 420px;
+}
+
 .kanban-compras-supplier-note {
   font-size: 11px;
   color: #6b21a8;
@@ -1107,31 +1112,41 @@ body,
   background: #dc2626;
 }
 
+.project-card--compras {
+  padding: 14px 12px;
+}
+
 .checklist-compras-row {
-  display: flex;
-  align-items: stretch;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
 }
 
 .checklist-compras-row.supplier-risk {
   background: rgba(254, 226, 226, 0.45);
   border-radius: 10px;
-  padding: 2px;
+  padding: 4px 6px;
 }
 
-.card-supplier-hint {
-  font-size: 11px;
+.compras-card-row-head {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 10px;
+  padding: 0 2px 6px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid #e9d5ff;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: #7e22ce;
-  background: #faf5ff;
-  border: 1px solid #e9d5ff;
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin-bottom: 10px;
-  line-height: 1.35;
 }
 
 .checklist-dots--compras {
-  gap: 8px;
+  gap: 10px;
+  width: 100%;
 }
 
 .supplier-date-field {
@@ -1140,14 +1155,20 @@ body,
   align-items: stretch;
   justify-content: center;
   flex-shrink: 0;
-  width: 108px;
-  min-width: 108px;
   padding: 6px 8px;
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid #c4b5fd;
   border-radius: 8px;
   cursor: default;
   box-shadow: 0 1px 3px rgba(126, 34, 206, 0.12);
+}
+
+.supplier-date-field--card {
+  width: 100%;
+  min-width: 0;
+  max-width: 128px;
+  padding: 4px 6px;
+  order: -1;
 }
 
 .supplier-date-field--panel {
@@ -1198,8 +1219,8 @@ body,
 
 .supplier-date-input {
   width: 100%;
-  min-width: 92px;
-  font-size: 13px;
+  min-width: 0;
+  font-size: 12px;
   padding: 6px 4px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
@@ -1207,6 +1228,11 @@ body,
   font-family: inherit;
   color: var(--text);
   box-sizing: border-box;
+}
+
+.supplier-date-field--card .supplier-date-input {
+  font-size: 13px;
+  padding: 7px 4px;
 }
 
 .supplier-date-input:disabled {
@@ -1217,6 +1243,17 @@ body,
 .checklist-compras-row .checklist-dot-row {
   flex: 1;
   min-width: 0;
+  width: 100%;
+  flex-wrap: nowrap;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.checklist-compras-row .checklist-dot-row .item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .forecasts-gate-chip--compras {
@@ -3896,6 +3933,11 @@ body,
     min-width: min(88vw, 300px);
     scroll-snap-align: start;
     max-height: calc(100dvh - 280px);
+  }
+
+  .kanban-column--compras {
+    min-width: min(94vw, 400px);
+    max-width: none;
   }
 
   .kanban-board--filtered .kanban-column {
