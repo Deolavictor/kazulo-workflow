@@ -204,7 +204,7 @@ const COMPRAS_ITEM_KEYS = Object.keys(SECTOR_CHECKLISTS.Compras || {});
 const CHECKLIST_LABELS = {
   projeto: "Projeto",
   listaMateriais: "Lista de materiais",
-  graficaStampnow: "Gráfica (Stampnow)",
+  graficaStampnow: "Grafica ( Enviada)",
   manualMontagem: "Manual de montagem",
   fo: "F.O. para Desenvolver",
   foProducao: "F.O. para produção",
@@ -1643,15 +1643,13 @@ function App() {
                           const activityDone = isActivityDone(selectedProject, item);
                           const supplierDate =
                             selectedProject.supplierDeadlines?.[item] || "";
-                          const panelIconClass = supplierRisk
-                            ? "late"
-                            : iconClass;
+                          const panelIconClass = activityDone ? "done" : iconClass;
 
                           if (locked) {
                             return (
                               <div
                                 key={item}
-                                className={`checklist-panel-compras-row ${supplierRisk ? "supplier-risk" : ""}`}
+                                className={`checklist-panel-compras-row ${supplierRisk && !activityDone ? "supplier-risk" : ""}`}
                               >
                                 {stageName === "Compras" && (
                                   <label
@@ -1695,7 +1693,7 @@ function App() {
                           return (
                             <div
                               key={item}
-                              className={`checklist-panel-compras-row ${supplierRisk ? "supplier-risk" : ""}`}
+                              className={`checklist-panel-compras-row ${supplierRisk && !activityDone ? "supplier-risk" : ""}`}
                             >
                               {stageName === "Compras" && (
                                 <label
@@ -1721,7 +1719,7 @@ function App() {
                             <button
                               type="button"
                               disabled={!editable}
-                              className={`checklist-panel-row ${late || supplierRisk ? "late-item" : ""} ${!editable ? "read-only" : ""}`}
+                              className={`checklist-panel-row ${late && !activityDone ? "late-item" : ""} ${!editable ? "read-only" : ""}`}
                               onClick={() => updateChecklist(selectedProject.id, item)}
                               title={
                                 editable
@@ -1730,15 +1728,13 @@ function App() {
                               }
                             >
                               <span className={`status-icon ${panelIconClass}`}>
-                                {supplierRisk
-                                  ? "!"
-                                  : status === "done"
-                                    ? "✓"
-                                    : status === "progress"
-                                      ? "●"
-                                      : late
-                                        ? "!"
-                                        : ""}
+                                {activityDone
+                                  ? "✓"
+                                  : status === "progress"
+                                    ? "●"
+                                    : late || supplierRisk
+                                      ? "!"
+                                      : ""}
                               </span>
                               <span
                                 className={`item-label ${status === "done" ? "done" : ""} ${status === "progress" ? "in-progress" : ""}`}
@@ -3263,24 +3259,20 @@ function KanbanProjectCard({
             const inProgress = status === "progress";
             const dueDate = project.checklistDates?.[item];
             const supplierDate = project.supplierDeadlines?.[item] || "";
-            const iconClass = supplierRisk
-              ? "late"
-              : done
-                ? "done"
-                : locked
-                  ? "locked"
-                  : inProgress
-                    ? "progress"
-                    : activityLate
-                      ? "late"
-                      : "pending";
+            const iconClass = done
+              ? "done"
+              : locked
+                ? "locked"
+                : inProgress
+                  ? "progress"
+                  : activityLate || supplierRisk
+                    ? "late"
+                    : "pending";
 
-            const statusLabel = supplierRisk
-              ? done
-                ? "concluído — fornecedor em risco"
-                : "fornecedor não atende início produção"
-              : done
-                ? "concluído"
+            const statusLabel = done
+              ? "concluído"
+              : supplierRisk
+                ? "fornecedor não atende início produção"
                 : inProgress
                   ? "em andamento"
                   : locked
@@ -3291,7 +3283,7 @@ function KanbanProjectCard({
 
             const dueDateEl = dueDate ? (
               <span
-                className={`item-due-date ${activityLate && !done ? "overdue" : ""} ${supplierRisk ? "item-due-date--supplier-risk" : ""}`}
+                className={`item-due-date ${activityLate && !done ? "overdue" : ""} ${supplierRisk && !done ? "item-due-date--supplier-risk" : ""}`}
               >
                 {formatDate(dueDate)}
               </span>
@@ -3317,9 +3309,10 @@ function KanbanProjectCard({
               </label>
             ) : null;
 
-            const comprasRowClass = supplierRisk
-              ? "checklist-compras-row supplier-risk"
-              : "checklist-compras-row";
+            const comprasRowClass =
+              supplierRisk && !done
+                ? "checklist-compras-row supplier-risk"
+                : "checklist-compras-row";
 
             if (locked) {
               const lockedRow = (
@@ -3366,7 +3359,7 @@ function KanbanProjectCard({
                 }}
               >
                 <span className={`status-icon ${iconClass}`}>
-                  {supplierRisk ? "!" : done ? "✓" : inProgress ? "●" : activityLate ? "!" : ""}
+                  {done ? "✓" : inProgress ? "●" : activityLate || supplierRisk ? "!" : ""}
                 </span>
                 <span
                   className={`item-label ${done ? "done" : ""} ${inProgress ? "in-progress" : ""}`}

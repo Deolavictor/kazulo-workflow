@@ -57,7 +57,7 @@ export const SECTOR_CHECKLISTS = {
 export const CHECKLIST_LABELS = {
   projeto: "Projeto",
   listaMateriais: "Lista de materiais",
-  graficaStampnow: "Gráfica (Stampnow)",
+  graficaStampnow: "Grafica ( Enviada)",
   manualMontagem: "Manual de montagem",
   fo: "F.O. para Desenvolver",
   foProducao: "F.O. para produção",
