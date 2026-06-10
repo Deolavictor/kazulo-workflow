@@ -896,21 +896,39 @@ body,
 
 .workspace {
   display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   padding: 20px 28px 24px;
-  gap: 20px;
+  gap: 12px;
   overflow: hidden;
 }
 
-/* Demais abas (Usuários, Config, Dashboard…): rolagem vertical aqui */
-.workspace:not(.workspace--projetos) {
+.workspace-alerts {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workspace-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 20px;
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-.workspace--projetos {
+/* Demais abas (Usuários, Config, Dashboard…): rolagem vertical aqui */
+.workspace-main:not(.workspace-main--projetos) {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.workspace-main--projetos {
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -1017,7 +1035,7 @@ body,
 }
 
 /* Kanban: ocupa o espaço até o fim da tela — barra horizontal sempre visível embaixo */
-.workspace--projetos .kanban-viewport {
+.workspace-main--projetos .kanban-viewport {
   flex: 1;
   min-height: 0;
   max-height: 100%;
@@ -1086,7 +1104,7 @@ body,
   flex: 1;
 }
 
-.workspace--projetos .kanban-column {
+.workspace-main--projetos .kanban-column {
   max-height: 100%;
   min-height: 0;
 }
@@ -1597,7 +1615,7 @@ body,
   cursor: pointer;
 }
 
-.workspace--projetos .detail-panel {
+.workspace-main--projetos .detail-panel {
   max-height: 100%;
   min-height: 0;
   align-self: stretch;
@@ -4325,7 +4343,7 @@ body,
     padding: 12px 16px max(12px, env(safe-area-inset-bottom));
   }
 
-  .workspace--projetos .kanban-viewport {
+  .workspace-main--projetos .kanban-viewport {
     flex: 1;
     min-height: 0;
     max-height: none;
@@ -4366,7 +4384,7 @@ body,
     padding: 14px;
   }
 
-  .workspace.has-detail .board-area {
+  .workspace-main.has-detail .board-area {
     display: none;
   }
 

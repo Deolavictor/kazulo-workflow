@@ -40,12 +40,12 @@ function notificationId(parts) {
 }
 
 function sectorsForUser(user) {
-  if (user.role === "admin") return KANBAN_STAGES;
+  if (user.role === "admin" || user.role === "viewer") return KANBAN_STAGES;
   return user.sector ? [user.sector] : [];
 }
 
 function userSeesSector(user, sector) {
-  if (user.role === "admin") return true;
+  if (user.role === "admin" || user.role === "viewer") return true;
   return user.sector === sector;
 }
 

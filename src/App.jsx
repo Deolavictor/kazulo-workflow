@@ -1463,18 +1463,24 @@ function App() {
         )}
 
         <div
-          className={`workspace ${selectedProject ? "has-detail" : ""} ${activeMenu === "Projetos" ? "workspace--projetos" : ""}`}
+          className={`workspace ${activeMenu === "Projetos" ? "workspace--projetos" : ""}`}
         >
-          {readOnly && (
-            <div className="viewer-mode-banner">
-              Modo somente visualização — você pode consultar projetos e relatórios, mas não alterar
-              dados. Para editar, faça login com usuário e senha.
+          {(readOnly || syncError) && (
+            <div className="workspace-alerts">
+              {readOnly && (
+                <div className="viewer-mode-banner">
+                  Modo somente visualização — você pode consultar projetos e relatórios, mas não
+                  alterar dados. Para editar, faça login com usuário e senha.
+                </div>
+              )}
+              {syncError && (
+                <div className="sync-error-banner">{syncError}</div>
+              )}
             </div>
           )}
-          {syncError && (
-            <div className="sync-error-banner">{syncError}</div>
-          )}
-         
+          <div
+            className={`workspace-main ${selectedProject ? "has-detail" : ""} ${activeMenu === "Projetos" ? "workspace-main--projetos" : ""}`}
+          >
           {projectsLoading ? (
             <div className="board-loading">Carregando projetos…</div>
           ) : activeMenu === "Dashboard" ? (
@@ -1487,6 +1493,7 @@ function App() {
             <CalendarView
               projects={projects}
               isAdmin={isAdmin}
+              isViewer={isViewer}
               userSector={user?.sector}
               onOpenProject={(project) => {
                 setSelectedProject(project);
@@ -1497,6 +1504,7 @@ function App() {
             <PrevisoesView
               projects={projects}
               isAdmin={isAdmin}
+              isViewer={isViewer}
               userSector={user?.sector}
               onOpenProject={(project) => {
                 setSelectedProject(project);
@@ -1507,6 +1515,7 @@ function App() {
             <RelatoriosView
               projects={projects}
               isAdmin={isAdmin}
+              isViewer={isViewer}
               userSector={user?.sector}
               onOpenProject={(project) => {
                 setSelectedProject(project);
@@ -1984,6 +1993,7 @@ function App() {
           )}
           </>
           )}
+          </div>
         </div>
       </div>
 
@@ -2460,8 +2470,9 @@ function KpiPanel({ kpi, title, theme }) {
   );
 }
 
-function RelatoriosView({ projects, isAdmin, userSector, onOpenProject }) {
-  const [viewMode, setViewMode] = useState(isAdmin ? "geral" : "setor");
+function RelatoriosView({ projects, isAdmin, isViewer, userSector, onOpenProject }) {
+  const seeAll = isAdmin || isViewer;
+  const [viewMode, setViewMode] = useState(seeAll ? "geral" : "setor");
   const [sectorFilter, setSectorFilter] = useState(userSector || KANBAN_STAGES[0]);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [pdfScope, setPdfScope] = useState(null);
@@ -2483,24 +2494,26 @@ function RelatoriosView({ projects, isAdmin, userSector, onOpenProject }) {
   const selectedTheme = STAGE_THEMES[isAdmin ? sectorFilter : userSector];
 
   const pdfIsFull = pdfScope === "full";
-  const renderGeralSection = pdfIsFull || (isAdmin && viewMode === "geral");
+  const renderGeralSection = pdfIsFull || (seeAll && (isAdmin ? viewMode === "geral" : true));
   const renderSetorSection = !pdfIsFull && isAdmin && viewMode === "setor";
-  const renderUserSectorSection = !pdfIsFull && !isAdmin;
+  const renderUserSectorSection = !pdfIsFull && !seeAll;
   const renderCompareTable = pdfIsFull || renderSetorSection;
 
   const activityStagesToShow = pdfIsFull
     ? sectorKpis
-    : isAdmin && viewMode === "geral"
+    : seeAll && (isAdmin ? viewMode === "geral" : true)
       ? sectorKpis
       : sectorKpis.filter((s) => s.stage === (isAdmin ? sectorFilter : userSector));
 
   const reportTitle = pdfIsFull
     ? "Relatório completo — todos os setores"
-    : !isAdmin
-      ? `Relatório — setor ${userSector}`
-      : viewMode === "geral"
-        ? "Relatório geral — todos os setores"
-        : `Relatório — setor ${sectorFilter}`;
+    : seeAll && !isAdmin
+      ? "Relatório geral — todos os setores"
+      : !seeAll
+        ? `Relatório — setor ${userSector}`
+        : viewMode === "geral"
+          ? "Relatório geral — todos os setores"
+          : `Relatório — setor ${sectorFilter}`;
 
   async function handleExportPdf(scope) {
     setExportingPdf(true);
@@ -2699,9 +2712,10 @@ function RelatoriosView({ projects, isAdmin, userSector, onOpenProject }) {
   );
 }
 
-function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
+function PrevisoesView({ projects, onOpenProject, isAdmin, isViewer, userSector }) {
+  const seeAll = isAdmin || isViewer;
   const [sectorFilter, setSectorFilter] = useState("Todos");
-  const effectiveFilter = isAdmin ? sectorFilter : userSector || "Todos";
+  const effectiveFilter = seeAll ? sectorFilter : userSector || "Todos";
   const forecasts = buildProductionForecasts(projects, effectiveFilter);
   const supplierAlertCount = forecasts.reduce(
     (n, f) => n + f.blockers.filter((b) => b.supplierDeadline).length,
@@ -2714,12 +2728,14 @@ function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
         <div>
           <h2>Previsões</h2>
           <p>
-            {isAdmin
-              ? "Risco no início de produção: itens críticos vencidos ou quando o prazo do fornecedor (Compras) não atende a data de início de produção"
+            {seeAll
+              ? isViewer
+                ? "Todos os setores — risco no início de produção e prazos de fornecedor (somente consulta)"
+                : "Risco no início de produção: itens críticos vencidos ou quando o prazo do fornecedor (Compras) não atende a data de início de produção"
               : `Alertas do setor ${userSector} e prazos de fornecedor que impactam o início de produção`}
           </p>
         </div>
-        {isAdmin && (
+        {seeAll && (
           <select
             className="filter-select"
             value={sectorFilter}
@@ -2893,11 +2909,12 @@ function PrevisoesView({ projects, onOpenProject, isAdmin, userSector }) {
   );
 }
 
-function CalendarView({ projects, onOpenProject, isAdmin, userSector }) {
+function CalendarView({ projects, onOpenProject, isAdmin, isViewer, userSector }) {
+  const seeAll = isAdmin || isViewer;
   const [weekStart, setWeekStart] = useState(() => startOfWeekMonday(new Date()));
   const [sectorFilter, setSectorFilter] = useState("Todos");
 
-  const effectiveSectorFilter = isAdmin ? sectorFilter : userSector || "Todos";
+  const effectiveSectorFilter = seeAll ? sectorFilter : userSector || "Todos";
 
   const events = buildCalendarEvents(projects, effectiveSectorFilter);
   const weekDays = Array.from({ length: 7 }, (_, i) => addCalendarDays(weekStart, i));
@@ -2935,12 +2952,14 @@ function CalendarView({ projects, onOpenProject, isAdmin, userSector }) {
         <div>
           <h2>Calendário</h2>
           <p>
-            {isAdmin
-              ? "Atividades programadas por semana — itens atrasados em vermelho"
+            {seeAll
+              ? isViewer
+                ? "Todos os setores — atividades por semana (somente consulta)"
+                : "Atividades programadas por semana — itens atrasados em vermelho"
               : `Setor ${userSector} — somente suas atividades nesta semana`}
           </p>
         </div>
-        {isAdmin ? (
+        {seeAll ? (
           <div className="calendar-tools">
             <select
               className="filter-select"
