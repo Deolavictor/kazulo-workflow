@@ -33,6 +33,7 @@ export const KANBAN_STAGES = [
 
 export function canUserEditActivity(user, itemKey) {
   if (!user) return false;
+  if (user.role === "viewer") return false;
   if (user.role === "admin") return true;
   return ACTIVITY_SECTOR[itemKey] === user.sector;
 }

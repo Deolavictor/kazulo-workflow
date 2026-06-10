@@ -3,7 +3,11 @@ import { ChangePasswordForm } from "../components/ChangePasswordForm";
 
 export function MinhaContaView({ user }) {
   const roleLabel =
-    user?.role === "admin" ? "Administrador" : `Setor ${user?.sector || "—"}`;
+    user?.role === "viewer"
+      ? "Somente visualização"
+      : user?.role === "admin"
+        ? "Administrador"
+        : `Setor ${user?.sector || "—"}`;
 
   return (
     <div className="admin-page minha-conta-page">
@@ -35,13 +39,22 @@ export function MinhaContaView({ user }) {
         </p>
       </div>
 
-      <div className="admin-card">
-        <h3>Alterar senha</h3>
-        <p className="admin-hint" style={{ marginTop: 0 }}>
-          Informe a senha atual e escolha uma nova (mínimo 4 caracteres).
-        </p>
-        <ChangePasswordForm />
-      </div>
+      {user?.role === "viewer" ? (
+        <div className="admin-card">
+          <p className="admin-hint" style={{ marginTop: 0 }}>
+            Este acesso é somente leitura. Para alterar senha ou editar projetos, use login com
+            usuário e senha.
+          </p>
+        </div>
+      ) : (
+        <div className="admin-card">
+          <h3>Alterar senha</h3>
+          <p className="admin-hint" style={{ marginTop: 0 }}>
+            Informe a senha atual e escolha uma nova (mínimo 4 caracteres).
+          </p>
+          <ChangePasswordForm />
+        </div>
+      )}
     </div>
   );
 }

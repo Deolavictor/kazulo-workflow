@@ -36,15 +36,36 @@ export function AuthProvider({ children }) {
     return logged;
   }
 
+  async function loginAsViewer() {
+    const { token, user: logged } = await api.loginAsViewer();
+    setToken(token);
+    setUser(logged);
+    return logged;
+  }
+
   function logout() {
     setToken(null);
     setUser(null);
   }
 
   const isAdmin = user?.role === "admin";
+  const isViewer = user?.role === "viewer";
+  const readOnly = isViewer;
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isAdmin, reloadSession: loadSession }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        loginAsViewer,
+        logout,
+        isAdmin,
+        isViewer,
+        readOnly,
+        reloadSession: loadSession
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

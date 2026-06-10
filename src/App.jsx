@@ -730,7 +730,7 @@ function migrateProject(project) {
 }
 
 function App() {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isViewer, readOnly } = useAuth();
 
   const [projects, setProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
@@ -771,20 +771,20 @@ function App() {
 
   const canEditActivity = useCallback(
     (itemKey) => {
-      if (!user) return false;
+      if (!user || readOnly) return false;
       if (user.role === "admin") return true;
       return ACTIVITY_SECTOR[itemKey] === user.sector;
     },
-    [user]
+    [user, readOnly]
   );
 
   const canEditSupplierDeadline = useCallback(
     (itemKey) => {
-      if (!user) return false;
+      if (!user || readOnly) return false;
       if (user.role === "admin") return true;
       return user.sector === "Compras" && COMPRAS_ITEM_KEYS.includes(itemKey);
     },
-    [user]
+    [user, readOnly]
   );
 
   function pushHistory(project, entry) {
@@ -907,6 +907,7 @@ function App() {
   }
 
   async function saveProject(project) {
+    if (readOnly) return null;
     const { project: saved } = await api.updateProject(project);
     const migrated = migrateProject(saved);
     setProjects((prev) => prev.map((p) => (p.id === migrated.id ? migrated : p)));
@@ -973,6 +974,7 @@ function App() {
   }
 
   async function updateChecklist(projectId, item) {
+    if (readOnly) return;
     if (!canEditActivity(item)) {
       alert(`Você só pode alterar itens do setor ${user?.sector || "autorizado"}.`);
       return;
@@ -1044,6 +1046,7 @@ function App() {
   }
 
   async function updateSupplierDeadline(projectId, itemKey, dateStr) {
+    if (readOnly) return;
     if (!canEditSupplierDeadline(itemKey)) {
       alert("Somente o setor Compras pode informar prazo do fornecedor.");
       return;
@@ -1424,7 +1427,11 @@ function App() {
               <div>
                 <div className="user-name">{displayName}</div>
                 <div className="user-role">
-                  {isAdmin ? "Administrador" : `Setor ${user?.sector}`}
+                  {isViewer
+                    ? "Somente visualização"
+                    : isAdmin
+                      ? "Administrador"
+                      : `Setor ${user?.sector}`}
                 </div>
               </div>
             </div>
@@ -1458,6 +1465,12 @@ function App() {
         <div
           className={`workspace ${selectedProject ? "has-detail" : ""} ${activeMenu === "Projetos" ? "workspace--projetos" : ""}`}
         >
+          {readOnly && (
+            <div className="viewer-mode-banner">
+              Modo somente visualização — você pode consultar projetos e relatórios, mas não alterar
+              dados. Para editar, faça login com usuário e senha.
+            </div>
+          )}
           {syncError && (
             <div className="sync-error-banner">{syncError}</div>
           )}
@@ -1512,6 +1525,7 @@ function App() {
           ) : activeMenu === "Chat" ? (
             <ChatView
               user={user}
+              readOnly={readOnly}
               initialChannel={chatInitialChannel}
               onRead={loadNotifications}
               onMessagesLoaded={loadNotifications}

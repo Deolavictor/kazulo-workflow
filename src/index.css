@@ -206,6 +206,35 @@ body,
   margin-top: 4px;
 }
 
+.login-viewer-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.login-viewer-divider::before,
+.login-viewer-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.login-viewer-btn {
+  width: 100%;
+}
+
+.login-viewer-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.45;
+}
+
 .login-error {
   color: #dc2626;
   font-size: 13px;
@@ -251,6 +280,27 @@ body,
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 12px;
+}
+
+.viewer-mode-banner {
+  width: 100%;
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.chat-readonly-hint {
+  margin: 0;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--muted);
+  background: #f8fafc;
+  border-top: 1px solid var(--border);
 }
 
 .import-banner {

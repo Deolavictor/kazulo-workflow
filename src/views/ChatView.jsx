@@ -8,7 +8,13 @@ function formatTime(iso) {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function ChatView({ user, initialChannel = "geral", onRead, onMessagesLoaded }) {
+export function ChatView({
+  user,
+  readOnly = false,
+  initialChannel = "geral",
+  onRead,
+  onMessagesLoaded
+}) {
   const [channels, setChannels] = useState([]);
   const [activeChannel, setActiveChannel] = useState(initialChannel);
   const [messages, setMessages] = useState([]);
@@ -64,6 +70,7 @@ export function ChatView({ user, initialChannel = "geral", onRead, onMessagesLoa
 
   async function handleSend(e) {
     e.preventDefault();
+    if (readOnly) return;
     const body = text.trim();
     if (!body || sending) return;
     setSending(true);
@@ -138,18 +145,24 @@ export function ChatView({ user, initialChannel = "geral", onRead, onMessagesLoa
             )}
             <div ref={bottomRef} />
           </div>
-          <form className="chat-compose" onSubmit={handleSend}>
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={`Mensagem em ${activeMeta?.label || "canal"}…`}
-              maxLength={2000}
-              autoComplete="off"
-            />
-            <button type="submit" className="btn-primary" disabled={sending || !text.trim()}>
-              {sending ? "…" : "Enviar"}
-            </button>
-          </form>
+          {readOnly ? (
+            <p className="chat-readonly-hint">
+              Modo visualização — leitura do chat apenas, sem envio de mensagens.
+            </p>
+          ) : (
+            <form className="chat-compose" onSubmit={handleSend}>
+              <input
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder={`Mensagem em ${activeMeta?.label || "canal"}…`}
+                maxLength={2000}
+                autoComplete="off"
+              />
+              <button type="submit" className="btn-primary" disabled={sending || !text.trim()}>
+                {sending ? "…" : "Enviar"}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>

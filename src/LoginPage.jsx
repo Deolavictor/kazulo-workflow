@@ -11,11 +11,12 @@ const HINT_USERS = [
 ];
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, loginAsViewer } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [viewerLoading, setViewerLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -27,6 +28,18 @@ export default function LoginPage() {
       setError(err.message || "Falha no login");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleViewerEntry() {
+    setError("");
+    setViewerLoading(true);
+    try {
+      await loginAsViewer();
+    } catch (err) {
+      setError(err.message || "Falha ao entrar em visualização");
+    } finally {
+      setViewerLoading(false);
     }
   }
 
@@ -59,10 +72,24 @@ export default function LoginPage() {
             />
           </div>
           {error && <p className="login-error">{error}</p>}
-          <button type="submit" className="btn-primary login-submit" disabled={submitting}>
+          <button type="submit" className="btn-primary login-submit" disabled={submitting || viewerLoading}>
             {submitting ? "Entrando…" : "Entrar"}
           </button>
         </form>
+        <div className="login-viewer-divider">
+          <span>ou</span>
+        </div>
+        <button
+          type="button"
+          className="btn-secondary login-viewer-btn"
+          disabled={submitting || viewerLoading}
+          onClick={handleViewerEntry}
+        >
+          {viewerLoading ? "Abrindo…" : "Entrar somente visualização"}
+        </button>
+        <p className="login-viewer-hint">
+          Consulta projetos, dashboard e relatórios sem senha — não é possível alterar dados.
+        </p>
         <div className="login-hint">
           <p><strong>Primeiro acesso?</strong> Use os logins criados no servidor:</p>
           <ul>

@@ -50,6 +50,12 @@ import {
 } from "./dailyScheduler.js";
 import { validateProjectUpdate } from "./validateProject.js";
 import { applyBusinessDayDates } from "./normalizeProject.js";
+import {
+  GUEST_VIEWER,
+  isViewerUser,
+  signViewerToken,
+  resolveUserFromToken
+} from "./viewerAuth.js";
 import { canUserEditProjectMeta } from "./workflowRules.js";
 import { getPersistenceStatus, logPersistenceOnStartup } from "./persistence.js";
 import {
@@ -82,7 +88,7 @@ function authMiddleware(req, res, next) {
   }
   try {
     const payload = jwt.verify(header.slice(7), JWT_SECRET);
-    const user = findUserById(payload.sub);
+    const user = resolveUserFromToken(payload, findUserById);
     if (!user) return res.status(401).json({ error: "Usuário inválido" });
     req.user = user;
     next();
@@ -94,6 +100,15 @@ function authMiddleware(req, res, next) {
 function requireAdmin(req, res, next) {
   if (req.user.role !== "admin") {
     return res.status(403).json({ error: "Acesso restrito ao administrador" });
+  }
+  next();
+}
+
+function rejectViewer(req, res, next) {
+  if (isViewerUser(req.user)) {
+    return res.status(403).json({
+      error: "Modo somente visualização — alterações não permitidas"
+    });
   }
   next();
 }
@@ -122,6 +137,11 @@ app.post("/api/auth/login", (req, res) => {
   const user = findUserById(row.id);
   const token = signToken(user);
   res.json({ token, user });
+});
+
+app.post("/api/auth/viewer", (_req, res) => {
+  const token = signViewerToken(JWT_SECRET);
+  res.json({ token, user: GUEST_VIEWER });
 });
 
 app.get("/api/auth/me", authMiddleware, (req, res) => {
@@ -162,7 +182,7 @@ app.delete("/api/users/:id", authMiddleware, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/auth/change-password", authMiddleware, (req, res) => {
+app.post("/api/auth/change-password", authMiddleware, rejectViewer, (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   if (!currentPassword || !newPassword) {
     return res.status(400).json({ error: "Informe a senha atual e a nova senha" });
@@ -226,7 +246,7 @@ app.get("/api/chat/messages", authMiddleware, (req, res) => {
   res.json({ messages: getChannelMessages(channel, { after, limit }) });
 });
 
-app.post("/api/chat/messages", authMiddleware, (req, res) => {
+app.post("/api/chat/messages", authMiddleware, rejectViewer, (req, res) => {
   const { channel, body } = req.body || {};
   const result = postMessage(req.user, channel || "geral", body);
   if (!result.ok) return res.status(400).json({ error: result.error });
@@ -295,7 +315,7 @@ app.post("/api/projects", authMiddleware, requireAdmin, (req, res) => {
   res.status(201).json({ project: normalized });
 });
 
-app.put("/api/projects/:id", authMiddleware, (req, res) => {
+app.put("/api/projects/:id", authMiddleware, rejectViewer, (req, res) => {
   const id = Number(req.params.id);
   const project = req.body?.project;
   if (!project || Number(project.id) !== id) {

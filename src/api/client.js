@@ -35,6 +35,12 @@ export const api = {
       body: JSON.stringify({ username, password })
     }),
 
+  loginAsViewer: () =>
+    request("/auth/viewer", {
+      method: "POST",
+      body: JSON.stringify({})
+    }),
+
   me: () => request("/auth/me"),
 
   fetchProjects: () => request("/projects"),
