@@ -11,14 +11,30 @@ const ADMIN_META_KEYS = [
   "observations"
 ];
 
+function normalizeActivityValue(value) {
+  if (value === true || value === "in_progress") return value;
+  return false;
+}
+
 function getActivities(project) {
-  const activities = { ...(project.activities || {}) };
+  const activities = {};
+  for (const key of Object.keys(ACTIVITY_SECTOR)) {
+    activities[key] = false;
+  }
+  Object.assign(activities, project.activities || {});
   Object.entries(project.checklist || {}).forEach(([key, value]) => {
-    if (key in ACTIVITY_SECTOR && !(key in activities)) {
+    if (key in ACTIVITY_SECTOR && !(key in (project.activities || {}))) {
       activities[key] = value === true;
     }
   });
+  for (const key of Object.keys(activities)) {
+    activities[key] = normalizeActivityValue(activities[key]);
+  }
   return activities;
+}
+
+function activityValueChanged(before, after) {
+  return normalizeActivityValue(before) !== normalizeActivityValue(after);
 }
 
 /** Detecta alteração real em metadados (ignora campos derivados/normalização do cliente) */
@@ -80,7 +96,8 @@ export function validateProjectUpdate(user, oldProject, newProject) {
   for (const key of Object.keys(ACTIVITY_SECTOR)) {
     const before = oldActs[key];
     const after = newActs[key];
-    if (before !== after && ACTIVITY_SECTOR[key] !== user.sector) {
+    if (!activityValueChanged(before, after)) continue;
+    if (ACTIVITY_SECTOR[key] !== user.sector) {
       return {
         ok: false,
         error: `Sem permissão para alterar "${key}" (setor ${ACTIVITY_SECTOR[key]})`
