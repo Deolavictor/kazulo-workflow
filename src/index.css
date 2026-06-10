@@ -1926,6 +1926,13 @@ body,
   font-weight: 600;
 }
 
+.date-field-hint {
+  width: 100%;
+  font-size: 11px;
+  color: #b45309;
+  font-weight: 500;
+}
+
 .form-field .date-field-input {
   width: auto;
   flex: 1;

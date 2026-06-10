@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { brToIso, isoToBr, maskBrDateInput } from "../utils/dateBr";
+import { adjustToPreviousBusinessDay } from "../utils/businessDays";
 
 /**
  * Campo de data em pt-BR (dd/mm/aaaa) com máscara + calendário nativo opcional.
@@ -13,6 +14,7 @@ export function DateField({
   inputClassName = "",
   compact = false,
   placeholder = "dd/mm/aaaa",
+  snapToBusinessDay = true,
   "aria-label": ariaLabel,
   id: idProp
 }) {
@@ -21,14 +23,26 @@ export function DateField({
   const nativeRef = useRef(null);
   const [text, setText] = useState(() => isoToBr(value));
   const [invalid, setInvalid] = useState(false);
+  const [adjustedHint, setAdjustedHint] = useState(false);
 
   useEffect(() => {
     setText(isoToBr(value));
     setInvalid(false);
+    setAdjustedHint(false);
   }, [value]);
 
+  function normalizeIso(iso) {
+    if (!iso || !snapToBusinessDay) return iso || "";
+    return adjustToPreviousBusinessDay(iso);
+  }
+
   function emitChange(iso) {
-    onChange?.(iso || "");
+    const normalized = normalizeIso(iso);
+    setAdjustedHint(Boolean(iso && normalized && iso !== normalized));
+    if (normalized) {
+      setText(isoToBr(normalized));
+    }
+    onChange?.(normalized || "");
   }
 
   function handleTextChange(e) {
@@ -134,6 +148,9 @@ export function DateField({
       )}
       {invalid && !compact && (
         <span className="date-field-error">Use o formato dd/mm/aaaa</span>
+      )}
+      {adjustedHint && !invalid && !compact && (
+        <span className="date-field-hint">Ajustado para o dia útil anterior (fim de semana/feriado)</span>
       )}
     </div>
   );

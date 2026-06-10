@@ -49,6 +49,7 @@ import {
   startDailyReportScheduler
 } from "./dailyScheduler.js";
 import { validateProjectUpdate } from "./validateProject.js";
+import { applyBusinessDayDates } from "./normalizeProject.js";
 import { canUserEditProjectMeta } from "./workflowRules.js";
 import { getPersistenceStatus, logPersistenceOnStartup } from "./persistence.js";
 import {
@@ -289,8 +290,9 @@ app.post("/api/projects", authMiddleware, requireAdmin, (req, res) => {
   if (projectExists(project.id)) {
     return res.status(409).json({ error: "Projeto já existe" });
   }
-  insertProject(project);
-  res.status(201).json({ project });
+  const normalized = applyBusinessDayDates(project);
+  insertProject(normalized);
+  res.status(201).json({ project: normalized });
 });
 
 app.put("/api/projects/:id", authMiddleware, (req, res) => {
@@ -305,13 +307,14 @@ app.put("/api/projects/:id", authMiddleware, (req, res) => {
     return res.status(404).json({ error: "Projeto não encontrado" });
   }
 
-  const validation = validateProjectUpdate(req.user, existing, project);
+  const normalized = applyBusinessDayDates(project);
+  const validation = validateProjectUpdate(req.user, existing, normalized);
   if (!validation.ok) {
     return res.status(403).json({ error: validation.error });
   }
 
-  updateProject(project);
-  res.json({ project });
+  updateProject(normalized);
+  res.json({ project: normalized });
 });
 
 app.delete("/api/projects/:id", authMiddleware, requireAdmin, (req, res) => {

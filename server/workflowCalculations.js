@@ -5,17 +5,13 @@ import {
   PRODUCTION_LEAD,
   SECTOR_CHECKLISTS
 } from "./workflowData.js";
+import {
+  subtractBusinessDays,
+  normalizeDeliveryDate,
+  isBusinessDay
+} from "../shared/businessDays.js";
 
-export function subtractDays(dateStr, days) {
-  const d = new Date(dateStr);
-  let remainingDays = days;
-  while (remainingDays > 0) {
-    d.setDate(d.getDate() - 1);
-    const day = d.getDay();
-    if (day !== 0 && day !== 6) remainingDays--;
-  }
-  return d.toISOString().split("T")[0];
-}
+export { subtractBusinessDays as subtractDays, normalizeDeliveryDate, isBusinessDay };
 
 export function formatDateBr(dateStr) {
   if (!dateStr) return "—";

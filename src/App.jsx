@@ -9,6 +9,7 @@ import { NotificationsPanel } from "./components/NotificationsPanel";
 import { ChatView } from "./views/ChatView";
 import { MinhaContaView } from "./views/MinhaContaView";
 import { DateField } from "./components/DateField";
+import { subtractDays, normalizeDeliveryDate } from "./utils/businessDays";
 
 // LEAD TIMES: dias antes do início de produção
 const itemLeadTimes = {
@@ -41,29 +42,6 @@ const PRODUCTION_LEAD = 8;
 const itemLeadFromDelivery = {
   kitDeItens: 3
 };
-
-function subtractDays(dateStr, days) {
-
-  const d = new Date(dateStr);
-
-  let remainingDays = days;
-
-  while (remainingDays > 0) {
-
-    d.setDate(d.getDate() - 1);
-
-    const day = d.getDay();
-
-    // 0 = domingo
-    // 6 = sábado
-
-    if (day !== 0 && day !== 6) {
-      remainingDays--;
-    }
-  }
-
-  return d.toISOString().split("T")[0];
-}
 
 function formatDate(dateStr) {
   if (!dateStr) return "";
@@ -724,18 +702,25 @@ function migrateProject(project) {
     if (key in activities) activities[key] = value === true;
   });
 
-  const productionStartDate =
-    project.productionStartDate ||
-    subtractDays(project.deliveryDate, PRODUCTION_LEAD);
+  const deliveryDate = project.deliveryDate
+    ? normalizeDeliveryDate(project.deliveryDate)
+    : project.deliveryDate;
 
-  const checklistDates = {
-    ...buildAllChecklistDates(productionStartDate, project.deliveryDate),
-    ...(project.checklistDates || {})
-  };
+  const productionStartDate = deliveryDate
+    ? subtractDays(deliveryDate, PRODUCTION_LEAD)
+    : project.productionStartDate;
+
+  const checklistDates = deliveryDate
+    ? {
+        ...buildAllChecklistDates(productionStartDate, deliveryDate),
+        ...(project.checklistDates || {})
+      }
+    : { ...(project.checklistDates || {}) };
 
   return {
     ...project,
     activities,
+    deliveryDate,
     checklistDates,
     productionStartDate,
     supplierDeadlines: { ...(project.supplierDeadlines || {}) },
@@ -952,15 +937,16 @@ function App() {
       return;
     }
 
-    const productionStartDate = subtractDays(deliveryDate, PRODUCTION_LEAD);
-    const checklistDates = buildAllChecklistDates(productionStartDate, deliveryDate);
+    const normalizedDelivery = normalizeDeliveryDate(deliveryDate);
+    const productionStartDate = subtractDays(normalizedDelivery, PRODUCTION_LEAD);
+    const checklistDates = buildAllChecklistDates(productionStartDate, normalizedDelivery);
 
     const newProject = pushHistory(
       {
         id: Date.now(),
         name: projectName,
         client,
-        deliveryDate,
+        deliveryDate: normalizedDelivery,
         productionStartDate,
         priority,
         completed: false,
@@ -1066,8 +1052,11 @@ function App() {
     if (!target) return;
 
     const supplierDeadlines = { ...(target.supplierDeadlines || {}) };
-    if (dateStr) supplierDeadlines[itemKey] = dateStr;
-    else delete supplierDeadlines[itemKey];
+    if (dateStr) {
+      supplierDeadlines[itemKey] = normalizeDeliveryDate(dateStr);
+    } else {
+      delete supplierDeadlines[itemKey];
+    }
 
     const blocks = dateStr && isSupplierDeadlineBlockingProduction(
       { ...target, supplierDeadlines },
@@ -1110,17 +1099,22 @@ function App() {
 
   async function updateDeliveryDate(projectId, newDeliveryDate) {
     if (!isAdmin) return;
+    const normalizedDelivery = normalizeDeliveryDate(newDeliveryDate);
     const updated = projects.map((project) => {
       if (project.id !== projectId) return project;
-      const newProductionStart = subtractDays(newDeliveryDate, PRODUCTION_LEAD);
+      const newProductionStart = subtractDays(normalizedDelivery, PRODUCTION_LEAD);
       const withDate = {
         ...project,
-        deliveryDate: newDeliveryDate,
+        deliveryDate: normalizedDelivery,
         productionStartDate: newProductionStart,
-        checklistDates: buildAllChecklistDates(newProductionStart, newDeliveryDate)
+        checklistDates: buildAllChecklistDates(newProductionStart, normalizedDelivery)
       };
+      const adjustNote =
+        normalizedDelivery !== newDeliveryDate
+          ? " (ajustada para dia útil anterior)"
+          : "";
       return pushHistory(withDate, {
-        message: `Data de entrega alterada para ${formatDate(newDeliveryDate)}`,
+        message: `Data de entrega alterada para ${formatDate(normalizedDelivery)}${adjustNote}`,
         type: "edit"
       });
     });
