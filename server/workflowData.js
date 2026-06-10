@@ -9,6 +9,7 @@ export const ACTIVITY_DEPENDENCIES = {
   solicitacaoCompras: ["listaMateriais"],
   foProducao: ["reuniaoAnalises"],
   opFo: ["foProducao"],
+  kitDeItens: ["foProducao"],
   piloto: ["fo"],
   matrizes: ["fo"],
   maquinas: ["fo"],
@@ -42,7 +43,8 @@ export const SECTOR_CHECKLISTS = {
   },
   PCP: {
     solicitacaoCompras: false,
-    opFo: false
+    opFo: false,
+    kitDeItens: false
   },
   Compras: {
     caixaCompras: false,
@@ -69,6 +71,7 @@ export const CHECKLIST_LABELS = {
   reuniaoAnalises: "Reunião de análises",
   solicitacaoCompras: "Solicitação compras",
   opFo: "O.P./F.O.",
+  kitDeItens: "Kit de Itens",
   caixaCompras: "Caixa",
   tinta: "Tinta",
   mpAco: "M.P. (Aço)",

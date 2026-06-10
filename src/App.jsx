@@ -37,6 +37,11 @@ const itemLeadTimes = {
 // Dias de antecedência do início de produção em relação à entrega
 const PRODUCTION_LEAD = 8;
 
+/** Prazo calculado a partir da data de entrega (não do início de produção) */
+const itemLeadFromDelivery = {
+  kitDeItens: 3
+};
+
 function subtractDays(dateStr, days) {
 
   const d = new Date(dateStr);
@@ -147,6 +152,7 @@ const ACTIVITY_DEPENDENCIES = {
   // Processos / PCP — cadeia após Desenvolvimento
   foProducao: ["reuniaoAnalises"],
   opFo: ["foProducao"],
+  kitDeItens: ["foProducao"],
 
   // Desenvolvimento — tudo liberado quando F.O. estiver concluída
   piloto: ["fo"],
@@ -188,7 +194,8 @@ const SECTOR_CHECKLISTS = {
   },
   PCP: {
     solicitacaoCompras: false,
-    opFo: false
+    opFo: false,
+    kitDeItens: false
   },
   Compras: {
     caixaCompras: false,
@@ -217,6 +224,7 @@ const CHECKLIST_LABELS = {
   reuniaoAnalises: "Reunião de análises",
   solicitacaoCompras: "Solicitação compras",
   opFo: "O.P./F.O.",
+  kitDeItens: "Kit de Itens",
   caixaCompras: "Caixa",
   tinta: "Tinta",
   mpAco: "M.P. (Aço)",
@@ -248,13 +256,19 @@ function buildEmptyActivities() {
   return activities;
 }
 
-function buildAllChecklistDates(productionStartDate) {
+function buildAllChecklistDates(productionStartDate, deliveryDate) {
   const dates = {};
   ALL_ACTIVITY_KEYS.forEach((item) => {
+    const leadFromDelivery = itemLeadFromDelivery[item];
+    if (leadFromDelivery !== undefined && deliveryDate) {
+      dates[item] = subtractDays(deliveryDate, leadFromDelivery);
+      return;
+    }
     const lead = itemLeadTimes[item];
-    dates[item] = lead !== undefined
-      ? subtractDays(productionStartDate, lead)
-      : productionStartDate;
+    dates[item] =
+      lead !== undefined
+        ? subtractDays(productionStartDate, lead)
+        : productionStartDate;
   });
   return dates;
 }
@@ -609,7 +623,7 @@ function migrateProject(project) {
     subtractDays(project.deliveryDate, PRODUCTION_LEAD);
 
   const checklistDates = {
-    ...buildAllChecklistDates(productionStartDate),
+    ...buildAllChecklistDates(productionStartDate, project.deliveryDate),
     ...(project.checklistDates || {})
   };
 
@@ -832,7 +846,7 @@ function App() {
     }
 
     const productionStartDate = subtractDays(deliveryDate, PRODUCTION_LEAD);
-    const checklistDates = buildAllChecklistDates(productionStartDate);
+    const checklistDates = buildAllChecklistDates(productionStartDate, deliveryDate);
 
     const newProject = pushHistory(
       {
@@ -996,7 +1010,7 @@ function App() {
         ...project,
         deliveryDate: newDeliveryDate,
         productionStartDate: newProductionStart,
-        checklistDates: buildAllChecklistDates(newProductionStart)
+        checklistDates: buildAllChecklistDates(newProductionStart, newDeliveryDate)
       };
       return pushHistory(withDate, {
         message: `Data de entrega alterada para ${formatDate(newDeliveryDate)}`,

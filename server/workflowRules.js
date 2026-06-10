@@ -14,6 +14,7 @@ export const ACTIVITY_SECTOR = {
   reuniaoAnalises: "Desenvolvimento",
   solicitacaoCompras: "PCP",
   opFo: "PCP",
+  kitDeItens: "PCP",
   caixaCompras: "Compras",
   tinta: "Compras",
   mpAco: "Compras",
