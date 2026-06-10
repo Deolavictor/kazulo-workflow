@@ -335,6 +335,112 @@ function isProjectFullyComplete(project) {
   return ALL_ACTIVITY_KEYS.every((key) => isActivityDone(project, key));
 }
 
+function isProjectCompleted(project) {
+  return project.completed || isProjectFullyComplete(project);
+}
+
+function getProjectCompletionDate(project) {
+  if (!isProjectCompleted(project)) return null;
+  const completionDates = ALL_ACTIVITY_KEYS.map((key) =>
+    getActivityCompletionDate(project, key)
+  ).filter(Boolean);
+  if (completionDates.length) {
+    return completionDates.sort().reverse()[0];
+  }
+  return null;
+}
+
+function isProjectCompletedThisMonth(project) {
+  if (!isProjectCompleted(project)) return false;
+  const completedDate = getProjectCompletionDate(project);
+  if (!completedDate) return true;
+  const d = new Date(completedDate);
+  const now = new Date();
+  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+}
+
+function isProjectAtRisk(project) {
+  if (isProjectCompleted(project)) return false;
+  const days = getDaysUntilDelivery(project.deliveryDate);
+  return days >= 0 && days <= 3;
+}
+
+function isProjectActive(project) {
+  return !isProjectCompleted(project);
+}
+
+function isProjectDeliveryLate(project) {
+  return getProjectDeliveryStatus(project) === "ATRASADO";
+}
+
+function projectHasOpenOverdueActivity(project) {
+  if (isProjectCompleted(project)) return false;
+  return ALL_ACTIVITY_KEYS.some((key) => isActivityOverdue(project, key));
+}
+
+function getInsightCardStage(project) {
+  if (isProjectCompleted(project)) {
+    return (
+      KANBAN_STAGES.find((stage) =>
+        getSectorItems(stage).some((item) => isActivityDone(project, item))
+      ) || "Design"
+    );
+  }
+  return (
+    KANBAN_STAGES.find((stage) =>
+      getSectorItems(stage).some((item) => !isActivityDone(project, item))
+    ) || "Design"
+  );
+}
+
+const INSIGHT_FILTERS = {
+  active: {
+    title: "Projetos ativos",
+    hint: "Com atividades ainda em andamento",
+    match: isProjectActive
+  },
+  atRisk: {
+    title: "Em risco",
+    hint: "Entrega daqui a até 3 dias",
+    match: isProjectAtRisk
+  },
+  delayed: {
+    title: "Atrasados",
+    hint: "Data de entrega já ultrapassada",
+    match: isProjectDeliveryLate
+  },
+  completedMonth: {
+    title: "Concluídos no mês",
+    hint: "Finalizados no mês atual",
+    match: isProjectCompletedThisMonth
+  },
+  total: {
+    title: "Todos os projetos",
+    hint: "Cadastrados no sistema",
+    match: () => true
+  },
+  completed: {
+    title: "Projetos concluídos",
+    hint: "100% das atividades finalizadas",
+    match: isProjectCompleted
+  },
+  openOverdue: {
+    title: "Com itens atrasados",
+    hint: "Alguma atividade do checklist vencida",
+    match: projectHasOpenOverdueActivity
+  }
+};
+
+function filterProjectsByInsight(projects, insightKey) {
+  const filter = INSIGHT_FILTERS[insightKey];
+  if (!filter) return [];
+  return projects.filter(filter.match).sort((a, b) => {
+    const da = getDaysUntilDelivery(a.deliveryDate);
+    const db = getDaysUntilDelivery(b.deliveryDate);
+    return da - db;
+  });
+}
+
 function sectorHasActiveCard(project, stage) {
   if (isProjectFullyComplete(project)) return false;
   const items = getSectorItems(stage);
@@ -663,6 +769,7 @@ function App() {
   const [notifLoading, setNotifLoading] = useState(false);
   const [chatInitialChannel, setChatInitialChannel] = useState("geral");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [insightPanel, setInsightPanel] = useState(null);
 
   const visibleMenuItems = useMemo(
     () => MENU_ITEMS.filter((item) => isAdmin || !item.adminOnly),
@@ -1039,19 +1146,22 @@ function App() {
     }
   }
 
-  const delayedProjects = projects.filter(
-    (p) => getProjectDeliveryStatus(p) === "ATRASADO"
-  );
   const kanbanStages = KANBAN_STAGES;
-  const activeCount = projects.filter((p) => !p.completed && !isProjectFullyComplete(p)).length;
-  const atRiskCount = projects.filter((p) => {
-    if (p.completed || isProjectFullyComplete(p)) return false;
-    const days = getDaysUntilDelivery(p.deliveryDate);
-    return days >= 0 && days <= 3;
-  }).length;
-  const completedMonth = projects.filter(
-    (p) => p.completed || isProjectFullyComplete(p)
-  ).length;
+  const activeCount = filterProjectsByInsight(projects, "active").length;
+  const atRiskCount = filterProjectsByInsight(projects, "atRisk").length;
+  const delayedCount = filterProjectsByInsight(projects, "delayed").length;
+  const completedMonth = filterProjectsByInsight(projects, "completedMonth").length;
+
+  function toggleInsightPanel(key) {
+    setInsightPanel((prev) => (prev === key ? null : key));
+  }
+
+  function openProjectFromInsight(project) {
+    setSelectedProject(project);
+    setDetailTab("historico");
+    setActiveMenu("Projetos");
+    setInsightPanel(null);
+  }
 
   const filteredProjects = projects.filter((p) => {
     if (p.completed || isProjectFullyComplete(p)) return false;
@@ -1262,34 +1372,32 @@ function App() {
             </div>
           </div>
           <div className="stats-grid">
-            <div className="stat-card blue">
-              <div>
-                <p className="stat-label">Projetos Ativos</p>
-                <p className="stat-value">{activeCount}</p>
-              </div>
-              <div className="stat-icon">📁</div>
-            </div>
-            <div className="stat-card warning">
-              <div>
-                <p className="stat-label">Em Risco</p>
-                <p className="stat-value">{atRiskCount}</p>
-              </div>
-              <div className="stat-icon">⚠</div>
-            </div>
-            <div className="stat-card danger">
-              <div>
-                <p className="stat-label">Atrasados</p>
-                <p className="stat-value">{delayedProjects.length}</p>
-              </div>
-              <div className="stat-icon">⏱</div>
-            </div>
-            <div className="stat-card success">
-              <div>
-                <p className="stat-label">Concluídos (Mês)</p>
-                <p className="stat-value">{completedMonth}</p>
-              </div>
-              <div className="stat-icon">✓</div>
-            </div>
+            {[
+              { key: "active", label: "Projetos Ativos", value: activeCount, icon: "📁", tone: "blue" },
+              { key: "atRisk", label: "Em Risco", value: atRiskCount, icon: "⚠", tone: "warning" },
+              { key: "delayed", label: "Atrasados", value: delayedCount, icon: "⏱", tone: "danger" },
+              {
+                key: "completedMonth",
+                label: "Concluídos (Mês)",
+                value: completedMonth,
+                icon: "✓",
+                tone: "success"
+              }
+            ].map((stat) => (
+              <button
+                key={stat.key}
+                type="button"
+                className={`stat-card stat-card--clickable ${stat.tone} ${insightPanel === stat.key ? "is-active" : ""}`}
+                onClick={() => toggleInsightPanel(stat.key)}
+                aria-expanded={insightPanel === stat.key}
+              >
+                <div>
+                  <p className="stat-label">{stat.label}</p>
+                  <p className="stat-value">{stat.value}</p>
+                </div>
+                <div className="stat-icon">{stat.icon}</div>
+              </button>
+            ))}
           </div>
           <div className="user-area user-area--desktop">
             <div className="notif-wrap">
@@ -1337,6 +1445,22 @@ function App() {
           </div>
         </div>
 
+        {insightPanel && INSIGHT_FILTERS[insightPanel] && (
+          <StatProjectsPanel
+            insightKey={insightPanel}
+            projects={filterProjectsByInsight(projects, insightPanel)}
+            onClose={() => setInsightPanel(null)}
+            onSelectProject={openProjectFromInsight}
+            getProjectBadge={getProjectBadge}
+            canEditActivity={canEditActivity}
+            canEditSupplierDeadline={canEditSupplierDeadline}
+            onToggleChecklist={updateChecklist}
+            onSupplierDeadlineChange={(projectId, item, date) =>
+              updateSupplierDeadline(projectId, item, date)
+            }
+          />
+        )}
+
         <div
           className={`workspace ${selectedProject ? "has-detail" : ""} ${activeMenu === "Projetos" ? "workspace--projetos" : ""}`}
         >
@@ -1347,7 +1471,11 @@ function App() {
           {projectsLoading ? (
             <div className="board-loading">Carregando projetos…</div>
           ) : activeMenu === "Dashboard" ? (
-            <DashboardView projects={projects} />
+            <DashboardView
+              projects={projects}
+              activeInsight={insightPanel}
+              onInsightToggle={toggleInsightPanel}
+            />
           ) : activeMenu === "Calendario" ? (
             <CalendarView
               projects={projects}
@@ -2936,7 +3064,62 @@ function CalendarView({ projects, onOpenProject, isAdmin, userSector }) {
   );
 }
 
-function DashboardView({ projects }) {
+function StatProjectsPanel({
+  insightKey,
+  projects,
+  onClose,
+  onSelectProject,
+  getProjectBadge,
+  canEditActivity,
+  canEditSupplierDeadline,
+  onToggleChecklist,
+  onSupplierDeadlineChange
+}) {
+  const meta = INSIGHT_FILTERS[insightKey];
+
+  return (
+    <section className="stat-projects-panel" aria-label={meta.title}>
+      <div className="stat-projects-panel-head">
+        <div>
+          <h3>{meta.title}</h3>
+          <p>
+            {meta.hint} — {projects.length} projeto(s). Clique no card para abrir o projeto.
+          </p>
+        </div>
+        <button type="button" className="btn-secondary btn-sm" onClick={onClose}>
+          Fechar
+        </button>
+      </div>
+      {projects.length === 0 ? (
+        <p className="stat-projects-empty">Nenhum projeto nesta lista no momento.</p>
+      ) : (
+        <div className="stat-projects-grid">
+          {projects.map((project) => {
+            const stage = getInsightCardStage(project);
+            return (
+              <KanbanProjectCard
+                key={project.id}
+                project={project}
+                stage={stage}
+                completedView={isProjectCompleted(project)}
+                badge={getProjectBadge(project)}
+                onSelect={() => onSelectProject(project)}
+                canEditActivity={canEditActivity}
+                canEditSupplierDeadline={canEditSupplierDeadline}
+                onToggleChecklist={(item) => onToggleChecklist(project.id, item)}
+                onSupplierDeadlineChange={(item, date) =>
+                  onSupplierDeadlineChange(project.id, item, date)
+                }
+              />
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DashboardView({ projects, activeInsight, onInsightToggle }) {
   const sectorStats = buildSectorDashboardStats(projects);
   const insights = buildGlobalDashboardInsights(projects, sectorStats);
 
@@ -2949,45 +3132,54 @@ function DashboardView({ projects }) {
     ? Math.round((totalOnTime / totalDeliveries) * 100)
     : 0;
 
+  const openOverdueCount = filterProjectsByInsight(projects, "openOverdue").length;
+
+  const summaryCards = [
+    { key: "total", label: "Projetos cadastrados", value: totalProjects, tone: "" },
+    { key: "completed", label: "Projetos concluídos", value: insights.completedProjects, tone: "success" },
+    { key: "active", label: "Projetos ativos", value: insights.activeProjects, tone: "" },
+    { key: "delayed", label: "Entrega final atrasada", value: insights.deliveryLate, tone: "late" },
+    { key: "atRisk", label: "Em risco (≤3 dias)", value: insights.atRisk, tone: "warning" },
+    { key: "openOverdue", label: "Com itens atrasados", value: openOverdueCount, tone: "late" },
+    { key: "completedMonth", label: "Concluídos no mês", value: filterProjectsByInsight(projects, "completedMonth").length, tone: "success" }
+  ];
+
   return (
     <div className="dashboard-view">
       <div className="dashboard-header">
         <div>
           <h2>Dashboard</h2>
-          <p>Indicadores por setor — pontualidade, volume e projetos em andamento</p>
+          <p>
+            Indicadores por setor — clique nos números para ver os projetos (cards como no Kanban)
+          </p>
         </div>
       </div>
 
       <div className="dashboard-summary">
-        <div className="dashboard-summary-card">
-          <p className="dashboard-summary-label">Projetos cadastrados</p>
-          <p className="dashboard-summary-value">{totalProjects}</p>
-        </div>
-        <div className="dashboard-summary-card success">
-          <p className="dashboard-summary-label">Projetos concluídos</p>
-          <p className="dashboard-summary-value">{insights.completedProjects}</p>
-        </div>
-        <div className="dashboard-summary-card">
-          <p className="dashboard-summary-label">Projetos ativos</p>
-          <p className="dashboard-summary-value">{insights.activeProjects}</p>
-        </div>
-        <div className="dashboard-summary-card">
-          <p className="dashboard-summary-label">Entrega final atrasada</p>
-          <p className="dashboard-summary-value late">{insights.deliveryLate}</p>
-        </div>
-        <div className="dashboard-summary-card">
-          <p className="dashboard-summary-label">Em risco (≤3 dias)</p>
-          <p className="dashboard-summary-value warning">{insights.atRisk}</p>
-        </div>
-        <div className="dashboard-summary-card">
+        {summaryCards.map((card) => (
+          <button
+            key={card.key}
+            type="button"
+            className={`dashboard-summary-card dashboard-summary-card--clickable ${card.tone} ${activeInsight === card.key ? "is-active" : ""}`}
+            onClick={() => onInsightToggle(card.key)}
+            aria-expanded={activeInsight === card.key}
+          >
+            <p className="dashboard-summary-label">{card.label}</p>
+            <p className={`dashboard-summary-value ${card.tone === "late" ? "late" : ""} ${card.tone === "warning" ? "warning" : ""} ${card.tone === "success" ? "" : ""} ${card.tone === "on-time" ? "on-time" : ""}`}>
+              {card.value}
+              {card.key === "onTimePct" ? "%" : ""}
+            </p>
+          </button>
+        ))}
+        <div className="dashboard-summary-card dashboard-summary-card--static">
           <p className="dashboard-summary-label">Itens no prazo</p>
           <p className="dashboard-summary-value on-time">{totalOnTime}</p>
         </div>
-        <div className="dashboard-summary-card">
+        <div className="dashboard-summary-card dashboard-summary-card--static">
           <p className="dashboard-summary-label">Itens fora do prazo</p>
           <p className="dashboard-summary-value late">{totalLate + totalOpenLate}</p>
         </div>
-        <div className="dashboard-summary-card">
+        <div className="dashboard-summary-card dashboard-summary-card--static">
           <p className="dashboard-summary-label">Taxa geral no prazo</p>
           <p className="dashboard-summary-value on-time">{globalOnTimePct}%</p>
         </div>
