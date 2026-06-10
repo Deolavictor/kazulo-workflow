@@ -251,12 +251,22 @@ function buildAllChecklistDates(productionStartDate, deliveryDate) {
   return dates;
 }
 
+function normalizeActivityValue(value) {
+  if (value === true || value === "in_progress") return value;
+  return false;
+}
+
 function getProjectActivities(project) {
-  if (project.activities) return project.activities;
   const activities = buildEmptyActivities();
+  Object.assign(activities, project.activities || {});
   Object.entries(project.checklist || {}).forEach(([key, value]) => {
-    if (key in activities) activities[key] = value === true;
+    if (key in activities && !(key in (project.activities || {}))) {
+      activities[key] = value === true;
+    }
   });
+  for (const key of Object.keys(activities)) {
+    activities[key] = normalizeActivityValue(activities[key]);
+  }
   return activities;
 }
 

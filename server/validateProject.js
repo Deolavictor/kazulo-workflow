@@ -1,3 +1,4 @@
+import { normalizeDeliveryDate } from "../shared/businessDays.js";
 import { ACTIVITY_SECTOR, canUserEditProjectMeta } from "./workflowRules.js";
 import { COMPRAS_ITEM_KEYS } from "./workflowCompras.js";
 
@@ -37,12 +38,23 @@ function activityValueChanged(before, after) {
   return normalizeActivityValue(before) !== normalizeActivityValue(after);
 }
 
+function deliveryDatesEquivalent(oldProject, newProject) {
+  const oldD = normalizeDeliveryDate(oldProject.deliveryDate || "");
+  const newD = normalizeDeliveryDate(newProject.deliveryDate || "");
+  return Boolean(oldD) && oldD === newD;
+}
+
 /** Detecta alteração real em metadados (ignora campos derivados/normalização do cliente) */
 function adminMetaFieldChanged(key, oldProject, newProject) {
   const oldVal = oldProject[key];
   const newVal = newProject[key];
 
+  if (key === "deliveryDate") {
+    return normalizeDeliveryDate(oldVal || "") !== normalizeDeliveryDate(newVal || "");
+  }
+
   if (key === "productionStartDate") {
+    if (deliveryDatesEquivalent(oldProject, newProject)) return false;
     if (!oldVal && newVal) return false;
   }
 
