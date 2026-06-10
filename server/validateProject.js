@@ -1,16 +1,46 @@
 import { ACTIVITY_SECTOR, canUserEditProjectMeta } from "./workflowRules.js";
 import { COMPRAS_ITEM_KEYS } from "./workflowCompras.js";
 
-const META_KEYS = [
+/** Campos que só o admin pode editar diretamente */
+const ADMIN_META_KEYS = [
   "name",
   "client",
   "deliveryDate",
   "productionStartDate",
   "priority",
-  "observations",
-  "completed",
-  "checklistDates"
+  "observations"
 ];
+
+function getActivities(project) {
+  const activities = { ...(project.activities || {}) };
+  Object.entries(project.checklist || {}).forEach(([key, value]) => {
+    if (key in ACTIVITY_SECTOR && !(key in activities)) {
+      activities[key] = value === true;
+    }
+  });
+  return activities;
+}
+
+/** Detecta alteração real em metadados (ignora campos derivados/normalização do cliente) */
+function adminMetaFieldChanged(key, oldProject, newProject) {
+  const oldVal = oldProject[key];
+  const newVal = newProject[key];
+
+  if (key === "productionStartDate") {
+    if (!oldVal && newVal) return false;
+  }
+
+  if (key === "checklistDates") {
+    const oldDates = oldVal || {};
+    const newDates = newVal || {};
+    for (const dateKey of Object.keys(oldDates)) {
+      if (oldDates[dateKey] !== newDates[dateKey]) return true;
+    }
+    return false;
+  }
+
+  return JSON.stringify(oldVal) !== JSON.stringify(newVal);
+}
 
 export function validateProjectUpdate(user, oldProject, newProject) {
   if (!oldProject || !newProject) {
@@ -26,8 +56,8 @@ export function validateProjectUpdate(user, oldProject, newProject) {
   }
 
   if (!canUserEditProjectMeta(user)) {
-    for (const key of META_KEYS) {
-      if (JSON.stringify(oldProject[key]) !== JSON.stringify(newProject[key])) {
+    for (const key of ADMIN_META_KEYS) {
+      if (adminMetaFieldChanged(key, oldProject, newProject)) {
         return {
           ok: false,
           error: "Somente administradores podem alterar dados gerais do projeto"
@@ -44,8 +74,8 @@ export function validateProjectUpdate(user, oldProject, newProject) {
     }
   }
 
-  const oldActs = oldProject.activities || {};
-  const newActs = newProject.activities || {};
+  const oldActs = getActivities(oldProject);
+  const newActs = getActivities(newProject);
 
   for (const key of Object.keys(ACTIVITY_SECTOR)) {
     const before = oldActs[key];
