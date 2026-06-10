@@ -914,6 +914,7 @@ body,
 .workspace-main {
   flex: 1;
   min-height: 0;
+  width: 100%;
   display: flex;
   gap: 20px;
   overflow-x: hidden;
@@ -923,9 +924,16 @@ body,
 
 /* Demais abas (Usuários, Config, Dashboard…): rolagem vertical aqui */
 .workspace-main:not(.workspace-main--projetos) {
+  flex-direction: column;
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+.workspace-main:not(.workspace-main--projetos) > * {
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .workspace-main--projetos {

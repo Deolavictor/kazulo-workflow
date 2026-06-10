@@ -1,5 +1,5 @@
-const CACHE = "kazulo-workflow-v3";
-const PRECACHE = ["/", "/index.html", "/kazulo-logo.png", "/manifest.webmanifest"];
+const CACHE = "kazulo-workflow-v4";
+const PRECACHE = ["/kazulo-logo.png", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -28,6 +28,27 @@ self.addEventListener("fetch", (event) => {
 
   if (event.request.method !== "GET") {
     event.respondWith(fetch(event.request));
+    return;
+  }
+
+  const isDocument =
+    event.request.mode === "navigate" ||
+    event.request.destination === "document" ||
+    url.pathname === "/" ||
+    url.pathname === "/index.html";
+
+  if (isDocument) {
+    event.respondWith(
+      fetch(event.request)
+        .then((res) => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE).then((cache) => cache.put(event.request, clone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(event.request))
+    );
     return;
   }
 

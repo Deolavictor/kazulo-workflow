@@ -15,7 +15,11 @@ export function AuthProvider({ children }) {
       return;
     }
     try {
-      const { user: me } = await api.me();
+      const mePromise = api.me();
+      const timeoutPromise = new Promise((_, reject) => {
+        window.setTimeout(() => reject(new Error("timeout")), 15000);
+      });
+      const { user: me } = await Promise.race([mePromise, timeoutPromise]);
       setUser(me);
     } catch {
       setToken(null);
