@@ -8,7 +8,9 @@ import {
 import {
   subtractBusinessDays,
   normalizeDeliveryDate,
-  isBusinessDay
+  isBusinessDay,
+  isItemLate,
+  getDaysLate
 } from "../shared/businessDays.js";
 
 export { subtractBusinessDays as subtractDays, normalizeDeliveryDate, isBusinessDay };
@@ -19,20 +21,7 @@ export function formatDateBr(dateStr) {
   return `${d}/${m}/${y}`;
 }
 
-function isItemLate(dueDateStr) {
-  if (!dueDateStr) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(dueDateStr) < today;
-}
-
-export function getDaysLate(dueDateStr) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(dueDateStr);
-  due.setHours(0, 0, 0, 0);
-  return Math.ceil((today - due) / (1000 * 60 * 60 * 24));
-}
+export { getDaysLate };
 
 function getProjectActivities(project) {
   if (project.activities) return project.activities;

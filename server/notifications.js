@@ -4,6 +4,7 @@ import {
   CHECKLIST_LABELS,
   PRODUCTION_GATE_KEYS
 } from "./workflowData.js";
+import { getDaysUntilDue, isItemLate } from "../shared/businessDays.js";
 import {
   buildSectorOverdueList,
   formatDateBr,
@@ -16,23 +17,8 @@ import {
   getProductionStartDate
 } from "./workflowCompras.js";
 
-function todayAtMidnight() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return today;
-}
-
-function isItemLate(dueDateStr) {
-  if (!dueDateStr) return false;
-  return new Date(dueDateStr) < todayAtMidnight();
-}
-
 function getDaysUntilDelivery(deliveryDate) {
-  if (!deliveryDate) return null;
-  const today = todayAtMidnight();
-  const due = new Date(deliveryDate);
-  due.setHours(0, 0, 0, 0);
-  return Math.ceil((due - today) / (1000 * 60 * 60 * 24));
+  return getDaysUntilDue(deliveryDate);
 }
 
 function notificationId(parts) {

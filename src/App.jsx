@@ -9,7 +9,14 @@ import { NotificationsPanel } from "./components/NotificationsPanel";
 import { ChatView } from "./views/ChatView";
 import { MinhaContaView } from "./views/MinhaContaView";
 import { DateField } from "./components/DateField";
-import { subtractDays, normalizeDeliveryDate } from "./utils/businessDays";
+import {
+  subtractDays,
+  normalizeDeliveryDate,
+  parseIsoLocal,
+  getDaysUntilDue,
+  isItemLate,
+  getDaysLate
+} from "./utils/businessDays";
 
 // LEAD TIMES: dias antes do início de produção
 const itemLeadTimes = {
@@ -49,19 +56,8 @@ function formatDate(dateStr) {
   return `${d}/${m}/${y}`;
 }
 
-function isItemLate(dueDateStr) {
-  if (!dueDateStr) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return new Date(dueDateStr) < today;
-}
-
 function getDaysUntilDelivery(deliveryDateStr) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const delivery = new Date(deliveryDateStr);
-  delivery.setHours(0, 0, 0, 0);
-  return Math.ceil((delivery - today) / (1000 * 60 * 60 * 24));
+  return getDaysUntilDue(deliveryDateStr) ?? 0;
 }
 
 function formatDateTime(isoStr) {
@@ -469,20 +465,18 @@ function isSupplierDeadlineBlockingProduction(project, itemKey) {
   if (!COMPRAS_ITEM_KEYS.includes(itemKey)) return false;
   const supplier = project.supplierDeadlines?.[itemKey];
   if (!supplier) return false;
-  const sup = new Date(supplier);
-  const prod = new Date(getProductionStartDate(project));
-  sup.setHours(0, 0, 0, 0);
-  prod.setHours(0, 0, 0, 0);
-  return sup > prod;
+  const sup = parseIsoLocal(supplier);
+  const prod = parseIsoLocal(getProductionStartDate(project));
+  if (!sup || !prod) return false;
+  return sup.getTime() > prod.getTime();
 }
 
 function getSupplierProductionGapDays(project, itemKey) {
   if (!isSupplierDeadlineBlockingProduction(project, itemKey)) return 0;
-  const sup = new Date(project.supplierDeadlines[itemKey]);
-  const prod = new Date(getProductionStartDate(project));
-  sup.setHours(0, 0, 0, 0);
-  prod.setHours(0, 0, 0, 0);
-  return Math.ceil((sup - prod) / (1000 * 60 * 60 * 24));
+  const sup = parseIsoLocal(project.supplierDeadlines[itemKey]);
+  const prod = parseIsoLocal(getProductionStartDate(project));
+  if (!sup || !prod || sup.getTime() <= prod.getTime()) return 0;
+  return Math.round((sup.getTime() - prod.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function isActivityOverdue(project, itemKey) {
@@ -520,16 +514,14 @@ function getSectorUrgencySortKey(project, stage) {
     if (isActivityDone(project, item)) return;
     const due = project.checklistDates?.[item];
     if (!due) return;
-    const dueDate = new Date(due);
-    dueDate.setHours(0, 0, 0, 0);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const diffMs = dueDate - today;
-    if (diffMs < 0) {
-      const overdueDays = Math.ceil(Math.abs(diffMs) / (1000 * 60 * 60 * 24));
+    if (isItemLate(due)) {
+      const overdueDays = getDaysLate(due);
       if (overdueDays > maxOverdueDays) maxOverdueDays = overdueDays;
-    } else if (dueDate.getTime() < nearestDueMs) {
-      nearestDueMs = dueDate.getTime();
+    } else {
+      const dueDate = parseIsoLocal(due);
+      if (dueDate && dueDate.getTime() < nearestDueMs) {
+        nearestDueMs = dueDate.getTime();
+      }
     }
   });
 
@@ -580,11 +572,7 @@ function wasActivityDeliveredOnTime(project, itemKey) {
 
 function getProjectDeliveryStatus(project) {
   if (project.completed || isProjectFullyComplete(project)) return "CONCLUIDO";
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const delivery = new Date(project.deliveryDate);
-  delivery.setHours(0, 0, 0, 0);
-  return today > delivery ? "ATRASADO" : "NO_PRAZO";
+  return isItemLate(project.deliveryDate) ? "ATRASADO" : "NO_PRAZO";
 }
 
 function buildSectorDashboardStats(projects) {
@@ -2099,14 +2087,6 @@ const PRODUCTION_GATE_KEYS = [
   "mpPsai"
 ];
 
-function getDaysLate(dueDateStr) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(dueDateStr);
-  due.setHours(0, 0, 0, 0);
-  return Math.max(0, Math.ceil((today - due) / (1000 * 60 * 60 * 24)));
-}
-
 function buildComprasSupplierForecastBlockers(project) {
   const productionStart = getProductionStartDate(project);
   return COMPRAS_ITEM_KEYS.map((key) => {
@@ -2189,12 +2169,10 @@ function getCompletionDelayDays(project, itemKey) {
   if (!completedDate) {
     return wasActivityDeliveredOnTime(project, itemKey) ? 0 : getDaysLate(due);
   }
-  const dueD = new Date(due);
-  dueD.setHours(0, 0, 0, 0);
-  const compD = new Date(completedDate);
-  compD.setHours(0, 0, 0, 0);
-  if (compD <= dueD) return 0;
-  return Math.ceil((compD - dueD) / (1000 * 60 * 60 * 24));
+  const dueD = parseIsoLocal(due);
+  const compD = parseIsoLocal(completedDate);
+  if (!dueD || !compD || compD.getTime() <= dueD.getTime()) return 0;
+  return Math.round((compD.getTime() - dueD.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function isActivityOverdueForKpi(project, itemKey) {

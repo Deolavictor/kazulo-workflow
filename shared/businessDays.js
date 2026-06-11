@@ -1,6 +1,6 @@
 /** Dias úteis (seg–sex) com feriados nacionais do Brasil */
 
-function parseIsoLocal(iso) {
+export function parseIsoLocal(iso) {
   if (!iso || typeof iso !== "string") return null;
   const parts = iso.trim().split("-");
   if (parts.length !== 3) return null;
@@ -135,3 +135,28 @@ export function subtractBusinessDays(dateStr, days) {
 
 /** Alias usado pelo workflow */
 export const subtractDays = subtractBusinessDays;
+
+export function todayLocal() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** Dias até o vencimento: 0 = vence hoje, negativo = já passou */
+export function getDaysUntilDue(dueDateStr) {
+  const due = parseIsoLocal(dueDateStr);
+  if (!due) return null;
+  return Math.round((due.getTime() - todayLocal().getTime()) / (1000 * 60 * 60 * 24));
+}
+
+/** Atrasado somente a partir do dia seguinte ao vencimento */
+export function isItemLate(dueDateStr) {
+  const days = getDaysUntilDue(dueDateStr);
+  return days != null && days < 0;
+}
+
+export function getDaysLate(dueDateStr) {
+  const days = getDaysUntilDue(dueDateStr);
+  if (days == null || days >= 0) return 0;
+  return Math.abs(days);
+}

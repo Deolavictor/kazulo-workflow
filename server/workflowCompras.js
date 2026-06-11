@@ -1,3 +1,4 @@
+import { parseIsoLocal } from "../shared/businessDays.js";
 import { SECTOR_CHECKLISTS, CHECKLIST_LABELS } from "./workflowData.js";
 import { PRODUCTION_LEAD } from "./workflowData.js";
 import { subtractDays } from "./workflowCalculations.js";
@@ -18,21 +19,19 @@ export function isSupplierDeadlineBlockingProduction(project, itemKey) {
   const supplier = project.supplierDeadlines?.[itemKey];
   if (!supplier) return false;
 
-  const sup = new Date(supplier);
-  const prod = new Date(getProductionStartDate(project));
-  sup.setHours(0, 0, 0, 0);
-  prod.setHours(0, 0, 0, 0);
-  return sup > prod;
+  const sup = parseIsoLocal(supplier);
+  const prod = parseIsoLocal(getProductionStartDate(project));
+  if (!sup || !prod) return false;
+  return sup.getTime() > prod.getTime();
 }
 
 export function getSupplierProductionGapDays(project, itemKey) {
   if (!isSupplierDeadlineBlockingProduction(project, itemKey)) return 0;
   const supplier = project.supplierDeadlines[itemKey];
-  const sup = new Date(supplier);
-  const prod = new Date(getProductionStartDate(project));
-  sup.setHours(0, 0, 0, 0);
-  prod.setHours(0, 0, 0, 0);
-  return Math.ceil((sup - prod) / (1000 * 60 * 60 * 24));
+  const sup = parseIsoLocal(supplier);
+  const prod = parseIsoLocal(getProductionStartDate(project));
+  if (!sup || !prod || sup.getTime() <= prod.getTime()) return 0;
+  return Math.round((sup.getTime() - prod.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 export function buildComprasSupplierBlockers(project) {
