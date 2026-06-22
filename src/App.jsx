@@ -18,20 +18,24 @@ import {
   getDaysLate
 } from "./utils/businessDays";
 
-// LEAD TIMES: dias antes do início de produção
+// LEAD TIMES: dias úteis antes do início de produção
+const DESENVOLVIMENTO_LEAD = 2;
+/** F.O. para Desenvolver vence 7 dias úteis antes dos prazos de Desenvolvimento */
+const FO_DAYS_BEFORE_DESENVOLVIMENTO = 7;
+
 const itemLeadTimes = {
   projeto: 12,
   listaMateriais: 12,
   graficaStampnow: 1,
   manualMontagem: 1,
-  fo: 3,
+  fo: DESENVOLVIMENTO_LEAD + FO_DAYS_BEFORE_DESENVOLVIMENTO,
   foProducao: 3,
   caixa: 11,
   programaLaser: 1,
-  piloto: 2,
-  matrizes: 2,
-  maquinas: 2,
-  reuniaoAnalises: 2,
+  piloto: DESENVOLVIMENTO_LEAD,
+  matrizes: DESENVOLVIMENTO_LEAD,
+  maquinas: DESENVOLVIMENTO_LEAD,
+  reuniaoAnalises: DESENVOLVIMENTO_LEAD,
   solicitacaoCompras: 11,
   opFo: 1,
   caixaCompras: 10,
@@ -709,10 +713,7 @@ function migrateProject(project) {
     : project.productionStartDate;
 
   const checklistDates = deliveryDate
-    ? {
-        ...buildAllChecklistDates(productionStartDate, deliveryDate),
-        ...(project.checklistDates || {})
-      }
+    ? buildAllChecklistDates(productionStartDate, deliveryDate)
     : { ...(project.checklistDates || {}) };
 
   return {
