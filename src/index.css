@@ -3643,6 +3643,22 @@ body,
   border-bottom-color: #bfdbfe;
 }
 
+.activity-list-block.completed h4 {
+  color: #15803d;
+  border-bottom-color: #bbf7d0;
+}
+
+.sector-activity-completed {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border);
+}
+
+.activity-list-block.completed .activity-list-count {
+  background: #dcfce7;
+  color: #15803d;
+}
+
 .activity-list-count {
   font-size: 12px;
   background: #f1f5f9;
@@ -3733,6 +3749,11 @@ body,
 .activity-status-pill.late {
   background: #fee2e2;
   color: #b91c1c;
+}
+
+.activity-status-pill.done {
+  background: #dcfce7;
+  color: #15803d;
 }
 
 @media (max-width: 1200px) {

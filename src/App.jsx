@@ -2281,7 +2281,29 @@ function KpiMetricCard({ label, value, suffix, variant, hint }) {
 function buildSectorActivityLists(projects, stage) {
   const overdue = [];
   const open = [];
+  const completedOnTime = [];
   const itemKeys = getSectorItems(stage);
+
+  projects.forEach((project) => {
+    itemKeys.forEach((key) => {
+      if (isActivityDone(project, key)) {
+        if (wasActivityDeliveredOnTime(project, key)) {
+          completedOnTime.push({
+            projectId: project.id,
+            projectName: project.name,
+            client: project.client,
+            itemKey: key,
+            label: CHECKLIST_LABELS[key],
+            dueDate: project.checklistDates?.[key],
+            completedDate: getActivityCompletionDate(project, key),
+            status: "done",
+            statusLabel: "Concluído no prazo"
+          });
+        }
+        return;
+      }
+    });
+  });
 
   projects.forEach((project) => {
     if (project.completed || isProjectFullyComplete(project)) return;
@@ -2327,8 +2349,16 @@ function buildSectorActivityLists(projects, stage) {
     if (b.dueDate) return 1;
     return a.projectName.localeCompare(b.projectName, "pt-BR");
   });
+  completedOnTime.sort((a, b) => {
+    if (a.completedDate && b.completedDate) {
+      return new Date(b.completedDate) - new Date(a.completedDate);
+    }
+    if (a.completedDate) return -1;
+    if (b.completedDate) return 1;
+    return a.projectName.localeCompare(b.projectName, "pt-BR");
+  });
 
-  return { overdue, open };
+  return { overdue, open, completedOnTime };
 }
 
 function ActivityListTable({ title, items, variant, projects, onOpenProject }) {
@@ -2347,6 +2377,7 @@ function ActivityListTable({ title, items, variant, projects, onOpenProject }) {
               <th>Projeto</th>
               <th>Atividade</th>
               <th>Prazo</th>
+              {variant === "completed" && <th>Concluído em</th>}
               <th>Status</th>
               {variant === "overdue" && <th>Atraso</th>}
             </tr>
@@ -2369,6 +2400,9 @@ function ActivityListTable({ title, items, variant, projects, onOpenProject }) {
                 </td>
                 <td>{row.label}</td>
                 <td>{row.dueDate ? formatDate(row.dueDate) : "—"}</td>
+                {variant === "completed" && (
+                  <td>{row.completedDate ? formatDate(row.completedDate) : "—"}</td>
+                )}
                 <td>
                   <span className={`activity-status-pill ${row.status}`}>
                     {row.statusLabel}
@@ -2413,6 +2447,15 @@ function SectorActivityReport({ stage, theme, lists, projects, onOpenProject }) 
           onOpenProject={onOpenProject}
         />
       </div>
+      <div className="sector-activity-completed">
+        <ActivityListTable
+          title="Concluídas no prazo"
+          items={lists.completedOnTime}
+          variant="completed"
+          projects={projects}
+          onOpenProject={onOpenProject}
+        />
+      </div>
     </section>
   );
 }
@@ -2428,6 +2471,17 @@ function KpiPanel({ kpi, title, theme }) {
       )}
       <div className="kpi-metrics-grid">
         <KpiMetricCard label="Atividades concluídas" value={kpi.completed} variant="success" />
+        <KpiMetricCard
+          label="Concluídas no prazo"
+          value={kpi.onTime}
+          variant="success"
+          hint="Numerador da eficiência"
+        />
+        <KpiMetricCard
+          label="Concluídas com atraso"
+          value={kpi.completedLate}
+          variant={kpi.completedLate > 0 ? "warning" : ""}
+        />
         <KpiMetricCard label="Atividades atrasadas" value={kpi.totalLate} variant="danger" />
         <KpiMetricCard
           label="Média de atraso"
@@ -2447,7 +2501,7 @@ function KpiPanel({ kpi, title, theme }) {
           value={kpi.efficiency !== null ? kpi.efficiency : "—"}
           suffix={kpi.efficiency !== null ? "%" : ""}
           variant="primary"
-          hint="Concluídas no prazo ÷ concluídas"
+          hint={`${kpi.onTime} no prazo ÷ ${kpi.completed} concluídas`}
         />
       </div>
       {kpi.completed > 0 && (
