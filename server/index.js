@@ -37,7 +37,12 @@ import {
   buildChatNotifications,
   isChatMessageReadForUser
 } from "./chat.js";
-import { listBackups, runDatabaseBackup, getBackupFilePath } from "./backup.js";
+import {
+  listBackups,
+  runDatabaseBackup,
+  getBackupFilePath,
+  getBackupConfig
+} from "./backup.js";
 import {
   backupOnStartupIfNeeded,
   registerShutdownBackup
