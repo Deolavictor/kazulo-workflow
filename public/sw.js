@@ -1,4 +1,4 @@
-const CACHE = "kazulo-workflow-v4";
+const CACHE = "kazulo-workflow-v5";
 const PRECACHE = ["/kazulo-logo.png", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {

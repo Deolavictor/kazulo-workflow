@@ -461,8 +461,18 @@ app.post("/api/admin/daily-report/welcome", authMiddleware, requireAdmin, async 
 
 if (process.env.NODE_ENV === "production") {
   const distPath = path.join(__dirname, "..", "dist");
-  app.use(express.static(distPath));
+  app.use(
+    express.static(distPath, {
+      setHeaders(res, filePath) {
+        const base = path.basename(filePath);
+        if (base === "index.html" || base === "sw.js") {
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        }
+      }
+    })
+  );
   app.get(/^(?!\/api).*/, (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.sendFile(path.join(distPath, "index.html"));
   });
 }
