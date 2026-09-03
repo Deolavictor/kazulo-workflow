@@ -15,7 +15,9 @@ import {
   parseIsoLocal,
   getDaysUntilDue,
   isItemLate,
-  getDaysLate
+  getDaysLate,
+  todayLocal,
+  toIsoLocal
 } from "./utils/businessDays";
 
 // LEAD TIMES: dias úteis antes do início de produção
@@ -69,6 +71,134 @@ function formatDateTime(isoStr) {
   const d = new Date(isoStr);
   const pad = (n) => String(n).padStart(2, "0");
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+const MONTH_NAMES_PT = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro"
+];
+
+function getCurrentYearMonth() {
+  const now = todayLocal();
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+}
+
+function yearMonthKey(ym) {
+  return `${ym.year}-${String(ym.month).padStart(2, "0")}`;
+}
+
+function parseYearMonthKey(key) {
+  const [year, month] = String(key).split("-").map(Number);
+  return { year, month };
+}
+
+function formatYearMonthLabel(ym) {
+  return `${MONTH_NAMES_PT[ym.month - 1]} ${ym.year}`;
+}
+
+function isCurrentYearMonth(ym) {
+  const now = getCurrentYearMonth();
+  return ym.year === now.year && ym.month === now.month;
+}
+
+function addYearMonths(ym, delta) {
+  const date = new Date(ym.year, ym.month - 1 + delta, 1);
+  return { year: date.getFullYear(), month: date.getMonth() + 1 };
+}
+
+function firstIsoOfMonth(ym) {
+  return `${ym.year}-${String(ym.month).padStart(2, "0")}-01`;
+}
+
+function lastIsoOfMonth(ym) {
+  const date = new Date(ym.year, ym.month, 0);
+  return `${ym.year}-${String(ym.month).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function asOfIsoForMonth(ym) {
+  return isCurrentYearMonth(ym) ? toIsoLocal(todayLocal()) : lastIsoOfMonth(ym);
+}
+
+function isoDay(iso) {
+  return iso ? String(iso).slice(0, 10) : "";
+}
+
+function isoOnOrBefore(iso, limit) {
+  const day = isoDay(iso);
+  return Boolean(day && limit && day <= limit);
+}
+
+function isoDateInYearMonth(iso, ym) {
+  const day = isoDay(iso);
+  if (!day || !ym) return false;
+  return day >= firstIsoOfMonth(ym) && day <= lastIsoOfMonth(ym);
+}
+
+function daysUntilDueAsOf(dueDateStr, asOfIso) {
+  const due = parseIsoLocal(dueDateStr);
+  const asOf = parseIsoLocal(asOfIso);
+  if (!due || !asOf) return null;
+  return Math.round((due.getTime() - asOf.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function isDueLateAsOf(dueDateStr, asOfIso) {
+  const days = daysUntilDueAsOf(dueDateStr, asOfIso);
+  return days != null && days < 0;
+}
+
+function getProjectCreatedIso(project) {
+  const events = [...(project.history || [])].sort(
+    (a, b) => new Date(a.at) - new Date(b.at)
+  );
+  const created = events.find(
+    (ev) => ev.type === "create" || ev.message?.includes("Projeto criado")
+  );
+  if (created?.at) return isoDay(created.at);
+  if (events[0]?.at) return isoDay(events[0].at);
+  return null;
+}
+
+function projectExistedBy(project, asOfIso) {
+  const created = getProjectCreatedIso(project);
+  if (!created) return true;
+  return isoOnOrBefore(created, asOfIso);
+}
+
+function wasActivityDoneByAsOf(project, itemKey, asOfIso, currentMonth) {
+  const completedDate = getActivityCompletionDate(project, itemKey);
+  if (completedDate) return isoOnOrBefore(completedDate, asOfIso);
+  return currentMonth && isActivityDone(project, itemKey);
+}
+
+function buildDashboardMonthOptions(projects) {
+  const now = getCurrentYearMonth();
+  const keys = new Set();
+  for (let i = 0; i < 24; i++) {
+    keys.add(yearMonthKey(addYearMonths(now, -i)));
+  }
+  projects.forEach((project) => {
+    const created = getProjectCreatedIso(project);
+    if (created) keys.add(created.slice(0, 7));
+    ALL_ACTIVITY_KEYS.forEach((key) => {
+      const completedDate = getActivityCompletionDate(project, key);
+      if (completedDate) keys.add(completedDate.slice(0, 7));
+    });
+  });
+  return [...keys]
+    .filter((key) => key <= yearMonthKey(now))
+    .sort()
+    .reverse()
+    .map(parseYearMonthKey);
 }
 
 const MENU_ITEMS = [
@@ -338,13 +468,61 @@ function getProjectCompletionDate(project) {
   return null;
 }
 
-function isProjectCompletedThisMonth(project) {
+function isProjectCompletedInMonth(project, ym) {
   if (!isProjectCompleted(project)) return false;
   const completedDate = getProjectCompletionDate(project);
-  if (!completedDate) return true;
-  const d = new Date(completedDate);
-  const now = new Date();
-  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  if (!completedDate) return isCurrentYearMonth(ym);
+  return isoDateInYearMonth(completedDate, ym);
+}
+
+function isProjectCompletedThisMonth(project) {
+  return isProjectCompletedInMonth(project, getCurrentYearMonth());
+}
+
+function isProjectCreatedInMonth(project, ym) {
+  const created = getProjectCreatedIso(project);
+  if (!created) return isCurrentYearMonth(ym);
+  return isoDateInYearMonth(created, ym);
+}
+
+function isProjectActiveAsOf(project, ym) {
+  if (!ym || isCurrentYearMonth(ym)) return isProjectActive(project);
+  const asOf = asOfIsoForMonth(ym);
+  if (!projectExistedBy(project, asOf)) return false;
+  const completedDate = getProjectCompletionDate(project);
+  if (completedDate) return completedDate > asOf;
+  return !isProjectCompleted(project);
+}
+
+function isProjectAtRiskAsOf(project, ym) {
+  if (!ym || isCurrentYearMonth(ym)) return isProjectAtRisk(project);
+  const asOf = asOfIsoForMonth(ym);
+  if (!projectExistedBy(project, asOf)) return false;
+  const completedDate = getProjectCompletionDate(project);
+  if (completedDate && completedDate <= asOf) return false;
+  const days = daysUntilDueAsOf(project.deliveryDate, asOf);
+  return days != null && days >= 0 && days <= 3;
+}
+
+function isProjectDeliveryLateAsOf(project, ym) {
+  if (!ym || isCurrentYearMonth(ym)) return isProjectDeliveryLate(project);
+  const asOf = asOfIsoForMonth(ym);
+  if (!projectExistedBy(project, asOf)) return false;
+  const completedDate = getProjectCompletionDate(project);
+  if (completedDate && completedDate <= asOf) return false;
+  return isDueLateAsOf(project.deliveryDate, asOf);
+}
+
+function projectHasOpenOverdueAsOf(project, ym) {
+  if (!ym || isCurrentYearMonth(ym)) return projectHasOpenOverdueActivity(project);
+  const asOf = asOfIsoForMonth(ym);
+  if (!projectExistedBy(project, asOf)) return false;
+  const completedDate = getProjectCompletionDate(project);
+  if (completedDate && completedDate <= asOf) return false;
+  return ALL_ACTIVITY_KEYS.some((key) => {
+    if (wasActivityDoneByAsOf(project, key, asOf, false)) return false;
+    return isDueLateAsOf(project.checklistDates?.[key], asOf);
+  });
 }
 
 function isProjectAtRisk(project) {
@@ -385,44 +563,49 @@ const INSIGHT_FILTERS = {
   active: {
     title: "Projetos ativos",
     hint: "Com atividades ainda em andamento",
-    match: isProjectActive
+    match: (project, yearMonth) => isProjectActiveAsOf(project, yearMonth)
   },
   atRisk: {
     title: "Em risco",
     hint: "Entrega daqui a até 3 dias",
-    match: isProjectAtRisk
+    match: (project, yearMonth) => isProjectAtRiskAsOf(project, yearMonth)
   },
   delayed: {
     title: "Atrasados",
     hint: "Data de entrega já ultrapassada",
-    match: isProjectDeliveryLate
+    match: (project, yearMonth) => isProjectDeliveryLateAsOf(project, yearMonth)
   },
   completedMonth: {
     title: "Concluídos no mês",
-    hint: "Finalizados no mês atual",
-    match: isProjectCompletedThisMonth
+    hint: "Finalizados no mês selecionado",
+    match: (project, yearMonth) =>
+      isProjectCompletedInMonth(project, yearMonth || getCurrentYearMonth())
   },
   total: {
-    title: "Todos os projetos",
-    hint: "Cadastrados no sistema",
-    match: () => true
+    title: "Projetos cadastrados",
+    hint: "Cadastrados no mês selecionado",
+    match: (project, yearMonth) =>
+      yearMonth ? isProjectCreatedInMonth(project, yearMonth) : true
   },
   completed: {
     title: "Projetos concluídos",
-    hint: "100% das atividades finalizadas",
-    match: isProjectCompleted
+    hint: "Finalizados no mês selecionado",
+    match: (project, yearMonth) =>
+      yearMonth
+        ? isProjectCompletedInMonth(project, yearMonth)
+        : isProjectCompleted(project)
   },
   openOverdue: {
     title: "Com itens atrasados",
     hint: "Alguma atividade do checklist vencida",
-    match: projectHasOpenOverdueActivity
+    match: (project, yearMonth) => projectHasOpenOverdueAsOf(project, yearMonth)
   }
 };
 
-function filterProjectsByInsight(projects, insightKey) {
+function filterProjectsByInsight(projects, insightKey, yearMonth) {
   const filter = INSIGHT_FILTERS[insightKey];
   if (!filter) return [];
-  return projects.filter(filter.match).sort((a, b) => {
+  return projects.filter((project) => filter.match(project, yearMonth)).sort((a, b) => {
     const da = getDaysUntilDelivery(a.deliveryDate);
     const db = getDaysUntilDelivery(b.deliveryDate);
     return da - db;
@@ -455,6 +638,15 @@ function getSectorProgress(project, stage) {
   const items = getSectorItems(stage);
   if (items.length === 0) return 0;
   const done = items.filter((item) => isActivityDone(project, item)).length;
+  return Math.round((done / items.length) * 100);
+}
+
+function getSectorProgressAsOf(project, stage, asOfIso, currentMonth) {
+  const items = getSectorItems(stage);
+  if (items.length === 0) return 0;
+  const done = items.filter((item) =>
+    wasActivityDoneByAsOf(project, item, asOfIso, currentMonth)
+  ).length;
   return Math.round((done / items.length) * 100);
 }
 
@@ -579,7 +771,33 @@ function getProjectDeliveryStatus(project) {
   return isItemLate(project.deliveryDate) ? "ATRASADO" : "NO_PRAZO";
 }
 
-function buildSectorDashboardStats(projects) {
+function classifyDashboardActivity(project, item, ym, asOfIso, currentMonth) {
+  const completedDate = getActivityCompletionDate(project, item);
+  const doneByAsOf = wasActivityDoneByAsOf(project, item, asOfIso, currentMonth);
+
+  if (doneByAsOf) {
+    const completedInMonth = completedDate
+      ? isoDateInYearMonth(completedDate, ym)
+      : currentMonth;
+    if (!completedInMonth) return null;
+    return wasActivityDeliveredOnTime(project, item) ? "onTime" : "late";
+  }
+
+  if (currentMonth) {
+    return isActivityOverdue(project, item) ? "openLate" : "openOnTime";
+  }
+
+  if (!projectExistedBy(project, asOfIso)) return null;
+  const due = project.checklistDates?.[item];
+  if (due && due > asOfIso) return null;
+  return isDueLateAsOf(due, asOfIso) ? "openLate" : "openOnTime";
+}
+
+function buildSectorDashboardStats(projects, yearMonth) {
+  const ym = yearMonth || getCurrentYearMonth();
+  const currentMonth = isCurrentYearMonth(ym);
+  const asOfIso = asOfIsoForMonth(ym);
+
   return KANBAN_STAGES.map((stage) => {
     let onTime = 0;
     let late = 0;
@@ -590,19 +808,30 @@ function buildSectorDashboardStats(projects) {
 
     projects.forEach((project) => {
       getSectorItems(stage).forEach((item) => {
-        if (isActivityDone(project, item)) {
+        const bucket = classifyDashboardActivity(
+          project,
+          item,
+          ym,
+          asOfIso,
+          currentMonth
+        );
+        if (bucket === "onTime") {
+          onTime++;
           projectIds.add(project.id);
-          if (wasActivityDeliveredOnTime(project, item)) onTime++;
-          else late++;
-        } else if (isActivityOverdue(project, item)) {
+        } else if (bucket === "late") {
+          late++;
+          projectIds.add(project.id);
+        } else if (bucket === "openLate") {
           openLate++;
-        } else {
+        } else if (bucket === "openOnTime") {
           openOnTime++;
         }
       });
       if (
-        !isProjectFullyComplete(project) &&
-        getSectorItems(stage).some((item) => !isActivityDone(project, item))
+        isProjectActiveAsOf(project, ym) &&
+        getSectorItems(stage).some(
+          (item) => !wasActivityDoneByAsOf(project, item, asOfIso, currentMonth)
+        )
       ) {
         activeProjectIds.add(project.id);
       }
@@ -611,8 +840,14 @@ function buildSectorDashboardStats(projects) {
     const deliveries = onTime + late;
     const openTotal = openOnTime + openLate;
     const activityTotal = deliveries + openTotal;
-    const progressSum = projects.reduce((sum, p) => sum + getSectorProgress(p, stage), 0);
-    const avgProgress = projects.length ? Math.round(progressSum / projects.length) : 0;
+    const monthProjects = projects.filter((p) => projectExistedBy(p, asOfIso));
+    const progressSum = monthProjects.reduce(
+      (sum, p) => sum + getSectorProgressAsOf(p, stage, asOfIso, currentMonth),
+      0
+    );
+    const avgProgress = monthProjects.length
+      ? Math.round(progressSum / monthProjects.length)
+      : 0;
 
     const pieSegments =
       activityTotal > 0
@@ -666,17 +901,14 @@ function buildConicGradient(segments) {
   return `conic-gradient(${stops.join(", ")})`;
 }
 
-function buildGlobalDashboardInsights(projects, sectorStats) {
-  const activeProjects = projects.filter((p) => !isProjectFullyComplete(p)).length;
-  const completedProjects = projects.filter(
-    (p) => p.completed || isProjectFullyComplete(p)
+function buildGlobalDashboardInsights(projects, sectorStats, yearMonth) {
+  const ym = yearMonth || getCurrentYearMonth();
+  const activeProjects = projects.filter((p) => isProjectActiveAsOf(p, ym)).length;
+  const completedProjects = projects.filter((p) =>
+    isProjectCompletedInMonth(p, ym)
   ).length;
-  const deliveryLate = projects.filter((p) => getProjectDeliveryStatus(p) === "ATRASADO").length;
-  const atRisk = projects.filter((p) => {
-    if (p.completed || isProjectFullyComplete(p)) return false;
-    const days = getDaysUntilDelivery(p.deliveryDate);
-    return days >= 0 && days <= 3;
-  }).length;
+  const deliveryLate = projects.filter((p) => isProjectDeliveryLateAsOf(p, ym)).length;
+  const atRisk = projects.filter((p) => isProjectAtRiskAsOf(p, ym)).length;
 
   const ranked = [...sectorStats]
     .filter((s) => s.deliveries > 0)
@@ -754,6 +986,7 @@ function App() {
   const [chatInitialChannel, setChatInitialChannel] = useState("geral");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [insightPanel, setInsightPanel] = useState(null);
+  const [dashboardMonth, setDashboardMonth] = useState(getCurrentYearMonth);
 
   const visibleMenuItems = useMemo(
     () => MENU_ITEMS.filter((item) => isAdmin || !item.adminOnly),
@@ -1448,7 +1681,16 @@ function App() {
         {insightPanel && INSIGHT_FILTERS[insightPanel] && (
           <StatProjectsPanel
             insightKey={insightPanel}
-            projects={filterProjectsByInsight(projects, insightPanel)}
+            periodLabel={
+              activeMenu === "Dashboard"
+                ? formatYearMonthLabel(dashboardMonth)
+                : null
+            }
+            projects={filterProjectsByInsight(
+              projects,
+              insightPanel,
+              activeMenu === "Dashboard" ? dashboardMonth : undefined
+            )}
             onClose={() => setInsightPanel(null)}
             onSelectProject={openProjectFromInsight}
             getProjectBadge={getProjectBadge}
@@ -1485,6 +1727,8 @@ function App() {
           ) : activeMenu === "Dashboard" ? (
             <DashboardView
               projects={projects}
+              yearMonth={dashboardMonth}
+              onYearMonthChange={setDashboardMonth}
               activeInsight={insightPanel}
               onInsightToggle={toggleInsightPanel}
             />
@@ -3136,6 +3380,7 @@ function CalendarView({ projects, onOpenProject, isAdmin, isViewer, userSector }
 
 function StatProjectsPanel({
   insightKey,
+  periodLabel,
   projects,
   onClose,
   onSelectProject,
@@ -3153,7 +3398,9 @@ function StatProjectsPanel({
         <div>
           <h3>{meta.title}</h3>
           <p>
-            {meta.hint} — {projects.length} projeto(s). Clique no card para abrir o projeto.
+            {meta.hint}
+            {periodLabel ? ` (${periodLabel})` : ""} — {projects.length} projeto(s). Clique no
+            card para abrir o projeto.
           </p>
         </div>
         <button type="button" className="btn-secondary btn-sm" onClick={onClose}>
@@ -3189,11 +3436,26 @@ function StatProjectsPanel({
   );
 }
 
-function DashboardView({ projects, activeInsight, onInsightToggle }) {
-  const sectorStats = buildSectorDashboardStats(projects);
-  const insights = buildGlobalDashboardInsights(projects, sectorStats);
+function DashboardView({
+  projects,
+  yearMonth,
+  onYearMonthChange,
+  activeInsight,
+  onInsightToggle
+}) {
+  const monthOptions = useMemo(() => {
+    const options = buildDashboardMonthOptions(projects);
+    const selectedKey = yearMonthKey(yearMonth);
+    if (options.some((option) => yearMonthKey(option) === selectedKey)) return options;
+    return [yearMonth, ...options].sort((a, b) =>
+      yearMonthKey(b).localeCompare(yearMonthKey(a))
+    );
+  }, [projects, yearMonth]);
+  const currentMonth = isCurrentYearMonth(yearMonth);
+  const sectorStats = buildSectorDashboardStats(projects, yearMonth);
+  const insights = buildGlobalDashboardInsights(projects, sectorStats, yearMonth);
 
-  const totalProjects = projects.length;
+  const totalProjects = filterProjectsByInsight(projects, "total", yearMonth).length;
   const totalDeliveries = sectorStats.reduce((sum, s) => sum + s.deliveries, 0);
   const totalOnTime = sectorStats.reduce((sum, s) => sum + s.onTime, 0);
   const totalLate = sectorStats.reduce((sum, s) => sum + s.late, 0);
@@ -3202,16 +3464,28 @@ function DashboardView({ projects, activeInsight, onInsightToggle }) {
     ? Math.round((totalOnTime / totalDeliveries) * 100)
     : 0;
 
-  const openOverdueCount = filterProjectsByInsight(projects, "openOverdue").length;
+  const openOverdueCount = filterProjectsByInsight(
+    projects,
+    "openOverdue",
+    yearMonth
+  ).length;
+
+  const canGoNext = !currentMonth;
+  const monthLabel = formatYearMonthLabel(yearMonth);
 
   const summaryCards = [
-    { key: "total", label: "Projetos cadastrados", value: totalProjects, tone: "" },
+    { key: "total", label: "Cadastrados no mês", value: totalProjects, tone: "" },
     { key: "completed", label: "Projetos concluídos", value: insights.completedProjects, tone: "success" },
     { key: "active", label: "Projetos ativos", value: insights.activeProjects, tone: "" },
     { key: "delayed", label: "Entrega final atrasada", value: insights.deliveryLate, tone: "late" },
     { key: "atRisk", label: "Em risco (≤3 dias)", value: insights.atRisk, tone: "warning" },
     { key: "openOverdue", label: "Com itens atrasados", value: openOverdueCount, tone: "late" },
-    { key: "completedMonth", label: "Concluídos no mês", value: filterProjectsByInsight(projects, "completedMonth").length, tone: "success" }
+    {
+      key: "completedMonth",
+      label: "Concluídos no mês",
+      value: filterProjectsByInsight(projects, "completedMonth", yearMonth).length,
+      tone: "success"
+    }
   ];
 
   return (
@@ -3220,8 +3494,52 @@ function DashboardView({ projects, activeInsight, onInsightToggle }) {
         <div>
           <h2>Dashboard</h2>
           <p>
-            Indicadores por setor — clique nos números para ver os projetos (cards como no Kanban)
+            Resultados de {monthLabel}. O recorte é só desta tela — atividades em aberto
+            continuam no Kanban quando vira o mês.
           </p>
+        </div>
+        <div className="dashboard-month-picker">
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            onClick={() => onYearMonthChange(addYearMonths(yearMonth, -1))}
+            aria-label="Mês anterior"
+          >
+            ◀
+          </button>
+          <label className="dashboard-month-select-wrap">
+            <span className="sr-only">Mês do dashboard</span>
+            <select
+              className="filter-select dashboard-month-select"
+              value={yearMonthKey(yearMonth)}
+              onChange={(e) => onYearMonthChange(parseYearMonthKey(e.target.value))}
+            >
+              {monthOptions.map((option) => (
+                <option key={yearMonthKey(option)} value={yearMonthKey(option)}>
+                  {formatYearMonthLabel(option)}
+                  {isCurrentYearMonth(option) ? " (atual)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            disabled={!canGoNext}
+            onClick={() => onYearMonthChange(addYearMonths(yearMonth, 1))}
+            aria-label="Próximo mês"
+          >
+            ▶
+          </button>
+          {!currentMonth && (
+            <button
+              type="button"
+              className="btn-primary btn-sm"
+              onClick={() => onYearMonthChange(getCurrentYearMonth())}
+            >
+              Mês atual
+            </button>
+          )}
         </div>
       </div>
 
@@ -3288,8 +3606,9 @@ function DashboardView({ projects, activeInsight, onInsightToggle }) {
       <section className="dashboard-panel dashboard-distribution">
         <h3>Composição por setor</h3>
         <p className="dashboard-panel-desc">
-          Cada barra representa 100% das atividades daquele setor. Setores com mais itens no
-          checklist (ex.: Compras) não “encolhem” os demais — a proporção é sempre interna ao setor.
+          Cada barra representa 100% das atividades daquele setor em {monthLabel}. Itens
+          concluídos em outros meses não entram neste recorte. Atividades em aberto do mês
+          atual continuam visíveis aqui e no Kanban.
         </p>
         <div className="dashboard-distribution-list">
           {sectorStats.map((sector) => (
